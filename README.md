@@ -1,6 +1,6 @@
-# kubectl-multi-context
+# kubectl multi-context
 
-A CLI tool that runs kubectl commands against every context in your kubeconfig file in parallel.
+A kubectl plugin that runs commands against every context in your kubeconfig file in parallel.
 
 ## Features
 
@@ -14,7 +14,7 @@ A CLI tool that runs kubectl commands against every context in your kubeconfig f
 ## Installation
 
 ```bash
-go build -o kubectl-multi-context
+go build .
 ```
 
 ## Usage
@@ -24,7 +24,7 @@ go build -o kubectl-multi-context
 Run `kubectl version` against all contexts:
 
 ```bash
-kubectl-multi-context version
+kubectl multi-context version
 ```
 
 ### Get Command
@@ -33,16 +33,16 @@ Run `kubectl get` against all contexts:
 
 ```bash
 # Get pods from all contexts
-kubectl-multi-context get pods
+kubectl multi-context get pods
 
 # Get pods with namespace
-kubectl-multi-context get pods -n default
+kubectl multi-context get pods -n default
 
 # Get pods with JSON output
-kubectl-multi-context get pods -o json
+kubectl multi-context get pods -o json
 
 # Get pods with YAML output
-kubectl-multi-context get pods -o yaml
+kubectl multi-context get pods -o yaml
 ```
 
 ## Output Formats

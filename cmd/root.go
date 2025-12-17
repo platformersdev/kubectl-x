@@ -5,9 +5,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "kubectl-multi-context",
+	Use:   "kubectl multi-context",
 	Short: "Run kubectl commands against every context in kubeconfig",
-	Long:  `kubectl-multi-context executes kubectl commands against all contexts in your kubeconfig file in parallel.`,
+	Long:  `kubectl multi-context executes commands against all contexts in your kubeconfig file in parallel.`,
 }
 
 func Execute() error {

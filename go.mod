@@ -1,4 +1,4 @@
-module github.com/platformersdev/kubectl-multi-context
+module github.com/platformersdev/kubectl-multi_context
 
 go 1.25
 
