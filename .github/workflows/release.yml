@@ -13,15 +13,15 @@ jobs:
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
-            artifact: kubectl-multi-context-linux-amd64
+            artifact: kubectl-multi_context-linux-amd64
           - os: macos-latest
             goos: darwin
             goarch: amd64
-            artifact: kubectl-multi-context-darwin-amd64
+            artifact: kubectl-multi_context-darwin-amd64
           - os: macos-latest
             goos: darwin
             goarch: arm64
-            artifact: kubectl-multi-context-darwin-arm64
+            artifact: kubectl-multi_context-darwin-arm64
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -76,7 +76,7 @@ jobs:
       run: |
         mkdir -p release
         # Copy artifacts, handling subdirectories
-        find artifacts -name "kubectl-multi-context-*" -type f -exec cp {} release/ \;
+        find artifacts -name "kubectl-multi_context-*" -type f -exec cp {} release/ \;
         chmod +x release/*
         ls -lh release/
         
