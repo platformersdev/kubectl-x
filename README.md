@@ -5,7 +5,7 @@ A kubectl plugin that runs commands against every context in your kubeconfig fil
 ## Features
 
 - Run kubectl commands against all contexts simultaneously
-- Parallel execution with batching (10 contexts at a time)
+- Parallel execution with configurable batching (default: 25 contexts at a time)
 - Support for `version` and `get` subcommands
 - Flexible output formatting:
   - Default: Adds a CONTEXT column to table output
@@ -18,6 +18,19 @@ go build .
 ```
 
 ## Usage
+
+### Batch Size
+
+Control the number of contexts processed in parallel using the `--batch-size` (or `-b`) flag:
+
+```bash
+# Use default batch size of 25
+kubectl multi-context get pods
+
+# Use custom batch size
+kubectl multi-context --batch-size 10 get pods
+kubectl multi-context -b 50 get pods
+```
 
 ### Version Command
 

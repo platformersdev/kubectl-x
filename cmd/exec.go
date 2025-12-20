@@ -22,8 +22,6 @@ func runCommand(subcommand string, extraArgs []string) error {
 		return fmt.Errorf("no contexts found in kubeconfig")
 	}
 
-	// Run in batches of 10
-	batchSize := 10
 	results := make([]contextResult, len(contexts))
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, batchSize)
