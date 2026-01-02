@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -60,7 +61,11 @@ func getContexts() ([]string, error) {
 
 	// Apply filters if specified
 	if len(filterPatterns) > 0 {
-		contexts = filterContexts(contexts, filterPatterns)
+		var err error
+		contexts, err = filterContexts(contexts, filterPatterns)
+		if err != nil {
+			return nil, fmt.Errorf("invalid filter pattern: %w", err)
+		}
 		if len(contexts) == 0 {
 			return nil, fmt.Errorf("no contexts match filter patterns: %s", strings.Join(filterPatterns, ", "))
 		}
@@ -69,29 +74,34 @@ func getContexts() ([]string, error) {
 	return contexts, nil
 }
 
-// filterContexts filters contexts by substring match (case-insensitive)
-// Multiple patterns are OR'd together - a context matches if it contains any of the patterns
-func filterContexts(contexts []string, patterns []string) []string {
+// filterContexts filters contexts by regex pattern matching (case-insensitive)
+// Multiple patterns are OR'd together - a context matches if it matches any of the patterns
+func filterContexts(contexts []string, patterns []string) ([]string, error) {
 	if len(patterns) == 0 {
-		return contexts
+		return contexts, nil
+	}
+
+	// Compile regex patterns
+	regexes := make([]*regexp.Regexp, 0, len(patterns))
+	for _, pattern := range patterns {
+		// Add case-insensitive flag (?i) to the pattern
+		regex, err := regexp.Compile("(?i)" + pattern)
+		if err != nil {
+			return nil, fmt.Errorf("invalid regex pattern %q: %w", pattern, err)
+		}
+		regexes = append(regexes, regex)
 	}
 
 	var filtered []string
-	patternLowers := make([]string, len(patterns))
-	for i, pattern := range patterns {
-		patternLowers[i] = strings.ToLower(pattern)
-	}
-
 	for _, ctx := range contexts {
-		ctxLower := strings.ToLower(ctx)
-		for _, patternLower := range patternLowers {
-			if strings.Contains(ctxLower, patternLower) {
+		for _, regex := range regexes {
+			if regex.MatchString(ctx) {
 				filtered = append(filtered, ctx)
 				break // Match found, no need to check other patterns for this context
 			}
 		}
 	}
-	return filtered
+	return filtered, nil
 }
 
 func getKubeconfigPath() string {

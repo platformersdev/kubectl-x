@@ -49,17 +49,23 @@ kubectl multi-context -b 50 get pods
 
 ### Filtering Contexts
 
-Filter which contexts to run commands against using the `--filter` flag (case-insensitive substring match). You can specify multiple `--filter` flags to match contexts that contain any of the patterns (OR logic):
+Filter which contexts to run commands against using the `--filter` flag with regex patterns (case-insensitive). You can specify multiple `--filter` flags to match contexts that match any of the patterns (OR logic):
 
 ```bash
-# Only run against contexts containing "prod"
+# Match contexts containing "prod"
 kubectl multi-context --filter prod get pods
 
-# Only run against contexts containing "dev"
-kubectl multi-context --filter dev version
+# Match contexts starting with "dev"
+kubectl multi-context --filter "^dev" version
 
 # Match contexts containing "dev" OR "prod"
 kubectl multi-context --filter dev --filter prod get pods
+
+# Match contexts ending with "-prod" or "-staging"
+kubectl multi-context --filter "-prod$" --filter "-staging$" get pods
+
+# Match contexts with "prod" or "production" (using regex alternation)
+kubectl multi-context --filter "prod(uction)?" get pods
 
 # Combine with batch size
 kubectl multi-context --filter staging --batch-size 10 get pods
