@@ -5,7 +5,7 @@ import (
 )
 
 var batchSize int = 25
-var filterPattern string
+var filterPatterns []string
 
 var rootCmd = &cobra.Command{
 	Use:              "kubectl multi-context",
@@ -20,7 +20,7 @@ func Execute() error {
 
 func init() {
 	rootCmd.PersistentFlags().IntVarP(&batchSize, "batch-size", "b", 25, "Number of contexts to process in parallel")
-	rootCmd.PersistentFlags().StringVar(&filterPattern, "filter", "", "Filter contexts by name (substring match)")
+	rootCmd.PersistentFlags().StringArrayVar(&filterPatterns, "filter", []string{}, "Filter contexts by name (substring match, can be specified multiple times for OR logic)")
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(getCmd)
 }

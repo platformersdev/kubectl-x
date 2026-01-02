@@ -58,11 +58,11 @@ func getContexts() ([]string, error) {
 		return nil, fmt.Errorf("no contexts found in kubeconfig")
 	}
 
-	// Apply filter if specified
-	if filterPattern != "" {
-		contexts = filterContexts(contexts, filterPattern)
+	// Apply filters if specified
+	if len(filterPatterns) > 0 {
+		contexts = filterContexts(contexts, filterPatterns)
 		if len(contexts) == 0 {
-			return nil, fmt.Errorf("no contexts match filter pattern: %s", filterPattern)
+			return nil, fmt.Errorf("no contexts match filter patterns: %s", strings.Join(filterPatterns, ", "))
 		}
 	}
 
@@ -70,16 +70,25 @@ func getContexts() ([]string, error) {
 }
 
 // filterContexts filters contexts by substring match (case-insensitive)
-func filterContexts(contexts []string, pattern string) []string {
-	if pattern == "" {
+// Multiple patterns are OR'd together - a context matches if it contains any of the patterns
+func filterContexts(contexts []string, patterns []string) []string {
+	if len(patterns) == 0 {
 		return contexts
 	}
 
 	var filtered []string
-	patternLower := strings.ToLower(pattern)
+	patternLowers := make([]string, len(patterns))
+	for i, pattern := range patterns {
+		patternLowers[i] = strings.ToLower(pattern)
+	}
+
 	for _, ctx := range contexts {
-		if strings.Contains(strings.ToLower(ctx), patternLower) {
-			filtered = append(filtered, ctx)
+		ctxLower := strings.ToLower(ctx)
+		for _, patternLower := range patternLowers {
+			if strings.Contains(ctxLower, patternLower) {
+				filtered = append(filtered, ctx)
+				break // Match found, no need to check other patterns for this context
+			}
 		}
 	}
 	return filtered

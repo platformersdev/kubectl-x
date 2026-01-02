@@ -2,6 +2,7 @@
 
 A kubectl plugin that runs commands against every context in your kubeconfig file in parallel.
 
+
 ## Features
 
 - Run kubectl commands against all contexts simultaneously
@@ -12,11 +13,18 @@ A kubectl plugin that runs commands against every context in your kubeconfig fil
   - Default: Adds a CONTEXT column to table output
   - JSON/YAML: Concatenates items with `.metadata.context` field
 
+
+## Why another project?
+
+This functionality already exists in another projects, [kubectl-foreach](https://github.com/ahmetb/kubectl-foreach). That is a great project and I learned a lot from it. However, it does not output valid JSON or YAML and I wanted that option, as well as some other features.
+
+
 ## Installation
 
 ```bash
 go build .
 ```
+
 
 ## Usage
 
@@ -35,7 +43,7 @@ kubectl multi-context -b 50 get pods
 
 ### Filtering Contexts
 
-Filter which contexts to run commands against using the `--filter` flag (case-insensitive substring match):
+Filter which contexts to run commands against using the `--filter` flag (case-insensitive substring match). You can specify multiple `--filter` flags to match contexts that contain any of the patterns (OR logic):
 
 ```bash
 # Only run against contexts containing "prod"
@@ -43,6 +51,9 @@ kubectl multi-context --filter prod get pods
 
 # Only run against contexts containing "dev"
 kubectl multi-context --filter dev version
+
+# Match contexts containing "dev" OR "prod"
+kubectl multi-context --filter dev --filter prod get pods
 
 # Combine with batch size
 kubectl multi-context --filter staging --batch-size 10 get pods
@@ -113,9 +124,10 @@ When using `-o json` or `-o yaml`, the tool concatenates all items from all cont
 }
 ```
 
+
 ## Requirements
 
-- Go 1.21 or later
 - kubectl installed and configured
 - Valid kubeconfig file (default: `~/.kube/config` or `$KUBECONFIG`)
+- Go 1.21 or later to build
 
