@@ -127,7 +127,7 @@ func TestFormatDefaultOutput(t *testing.T) {
 					err:     nil,
 				},
 			},
-			expected: "CONTEXT  NAME    STATUS    AGE\nctx1     pod1    Running   5m\n",
+			expected: "CONTEXT  NAME    STATUS     AGE\nctx1     pod1    Running    5m\n",
 		},
 		{
 			name: "multiple contexts with header",
@@ -143,7 +143,7 @@ func TestFormatDefaultOutput(t *testing.T) {
 					err:     nil,
 				},
 			},
-			expected: "CONTEXT  NAME    STATUS    AGE\nctx1     pod1    Running   5m\nctx2     pod2    Pending   3m\n",
+			expected: "CONTEXT  NAME    STATUS     AGE\nctx1     pod1    Running    5m\nctx2     pod2    Pending    3m\n",
 		},
 		{
 			name: "contexts with different length names",
@@ -203,6 +203,22 @@ func TestFormatDefaultOutput(t *testing.T) {
 				},
 			},
 			expected: "ctx1     pod1    Running\n",
+		},
+		{
+			name: "different column widths across contexts",
+			results: []contextResult{
+				{
+					context: "ctx1",
+					output:  "NAME    STATUS    AGE\npod1    Running   5m",
+					err:     nil,
+				},
+				{
+					context: "ctx2",
+					output:  "NAME         STATUS    AGE\nvery-long-pod-name    Pending   3m",
+					err:     nil,
+				},
+			},
+			expected: "CONTEXT  NAME                  STATUS     AGE\nctx1     pod1                  Running    5m\nctx2     very-long-pod-name    Pending    3m\n",
 		},
 	}
 
