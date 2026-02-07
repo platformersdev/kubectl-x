@@ -65,6 +65,41 @@ func TestDetectOutputFormat(t *testing.T) {
 			args:     []string{"pod", "--output"},
 			expected: formatDefault,
 		},
+		{
+			name:     "concatenated json short flag",
+			args:     []string{"pod", "-ojson"},
+			expected: formatJSON,
+		},
+		{
+			name:     "concatenated yaml short flag",
+			args:     []string{"pod", "-oyaml"},
+			expected: formatYAML,
+		},
+		{
+			name:     "equals format json",
+			args:     []string{"pod", "--output=json"},
+			expected: formatJSON,
+		},
+		{
+			name:     "equals format yaml",
+			args:     []string{"pod", "--output=yaml"},
+			expected: formatYAML,
+		},
+		{
+			name:     "case insensitive concatenated json",
+			args:     []string{"pod", "-oJSON"},
+			expected: formatJSON,
+		},
+		{
+			name:     "case insensitive equals format",
+			args:     []string{"pod", "--output=YAML"},
+			expected: formatYAML,
+		},
+		{
+			name:     "concatenated flag with unknown format",
+			args:     []string{"pod", "-otable"},
+			expected: formatDefault,
+		},
 	}
 
 	for _, tt := range tests {
