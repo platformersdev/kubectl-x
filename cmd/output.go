@@ -78,16 +78,38 @@ func colorizeContext(context string) string {
 }
 
 func detectOutputFormat(args []string) outputFormat {
+	parseFormat := func(format string) outputFormat {
+		format = strings.ToLower(format)
+		if format == "json" {
+			return formatJSON
+		}
+		if format == "yaml" {
+			return formatYAML
+		}
+		return formatDefault
+	}
+
 	for i, arg := range args {
+		// Handle separate flag and value: -o json, --output yaml
 		if arg == "-o" || arg == "--output" {
 			if i+1 < len(args) {
-				format := strings.ToLower(args[i+1])
-				if format == "json" {
-					return formatJSON
+				if format := parseFormat(args[i+1]); format != formatDefault {
+					return format
 				}
-				if format == "yaml" {
-					return formatYAML
-				}
+			}
+		}
+
+		// Handle concatenated short flag: -ojson, -oyaml
+		if strings.HasPrefix(arg, "-o") && len(arg) > 2 {
+			if format := parseFormat(strings.TrimPrefix(arg, "-o")); format != formatDefault {
+				return format
+			}
+		}
+
+		// Handle equals format: --output=json, --output=yaml
+		if strings.HasPrefix(arg, "--output=") {
+			if format := parseFormat(strings.TrimPrefix(arg, "--output=")); format != formatDefault {
+				return format
 			}
 		}
 	}
