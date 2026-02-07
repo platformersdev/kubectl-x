@@ -1,4 +1,4 @@
-# kubectl multi-context
+# kubectl x
 
 A kubectl plugin that runs commands against every context in your kubeconfig file in parallel.
 
@@ -40,11 +40,11 @@ Control the number of contexts processed in parallel using the `--batch-size` (o
 
 ```bash
 # Use default batch size of 25
-kubectl multi-context get pods
+kubectl x get pods
 
 # Use custom batch size
-kubectl multi-context --batch-size 10 get pods
-kubectl multi-context -b 50 get pods
+kubectl x --batch-size 10 get pods
+kubectl x -b 50 get pods
 ```
 
 ### Filtering Contexts
@@ -53,22 +53,22 @@ Filter which contexts to run commands against using the `--filter` flag with reg
 
 ```bash
 # Match contexts containing "prod"
-kubectl multi-context --filter prod get pods
+kubectl x --filter prod get pods
 
 # Match contexts starting with "dev"
-kubectl multi-context --filter "^dev" version
+kubectl x --filter "^dev" version
 
 # Match contexts containing "dev" OR "prod"
-kubectl multi-context --filter dev --filter prod get pods
+kubectl x --filter dev --filter prod get pods
 
 # Match contexts ending with "-prod" or "-staging"
-kubectl multi-context --filter "-prod$" --filter "-staging$" get pods
+kubectl x --filter "-prod$" --filter "-staging$" get pods
 
 # Match contexts with "prod" or "production" (using regex alternation)
-kubectl multi-context --filter "prod(uction)?" get pods
+kubectl x --filter "prod(uction)?" get pods
 
 # Combine with batch size
-kubectl multi-context --filter staging --batch-size 10 get pods
+kubectl x --filter staging --batch-size 10 get pods
 ```
 
 ### Version Command
@@ -76,7 +76,7 @@ kubectl multi-context --filter staging --batch-size 10 get pods
 Run `kubectl version` against all contexts:
 
 ```bash
-kubectl multi-context version
+kubectl x version
 ```
 
 ### Get Command
@@ -85,16 +85,16 @@ Run `kubectl get` against all contexts:
 
 ```bash
 # Get pods from all contexts
-kubectl multi-context get pods
+kubectl x get pods
 
 # Get pods with namespace
-kubectl multi-context get pods -n default
+kubectl x get pods -n default
 
 # Get pods with JSON output
-kubectl multi-context get pods -o json
+kubectl x get pods -o json
 
 # Get pods with YAML output
-kubectl multi-context get pods -o yaml
+kubectl x get pods -o yaml
 ```
 
 ## Output Formats
