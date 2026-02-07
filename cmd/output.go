@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"os"
+	"regexp"
 	"strings"
 
 	"golang.org/x/term"
@@ -131,10 +132,28 @@ func formatOutput(results []contextResult, format outputFormat, subcommand strin
 }
 
 func formatDefaultOutput(results []contextResult) error {
-	// First pass: collect all contexts and their outputs to determine max context width
+	// parseColumns splits a line into columns by detecting column boundaries (2+ spaces or tabs)
+	// kubectl output uses multiple spaces to separate columns
+	columnSeparator := regexp.MustCompile(`[ \t]{2,}`)
+	parseColumns := func(line string) []string {
+		// Split on 2+ spaces or tabs
+		parts := columnSeparator.Split(line, -1)
+		var columns []string
+		for _, part := range parts {
+			trimmed := strings.TrimSpace(part)
+			// Only include non-empty parts (skip empty strings from multiple consecutive separators)
+			if trimmed != "" {
+				columns = append(columns, trimmed)
+			}
+		}
+		return columns
+	}
+
+	// First pass: collect all contexts and their outputs
 	type outputData struct {
 		context string
 		lines   []string
+		columns [][]string // Parsed columns for each line
 		err     error
 		errMsg  string
 	}
@@ -168,27 +187,84 @@ func formatDefaultOutput(results []contextResult) error {
 			maxContextWidth = len(result.context)
 		}
 
+		// Parse columns for each line
+		columns := make([][]string, len(lines))
+		for i, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" {
+				columns[i] = parseColumns(trimmed)
+			}
+		}
+
 		allOutputs = append(allOutputs, outputData{
 			context: result.context,
 			lines:   lines,
+			columns: columns,
 		})
 	}
 
 	// Find the header from the first valid output
-	var headerLine string
+	var headerColumns []string
 	var headerFound bool
 	for _, data := range allOutputs {
-		if data.err == nil && len(data.lines) > 1 {
-			headerLine = data.lines[0]
+		if data.err == nil && len(data.columns) > 1 && len(data.columns[0]) > 0 {
+			headerColumns = data.columns[0]
 			headerFound = true
 			break
 		}
 	}
 
+	// Second pass: find max width for each column position across all outputs
+	maxColumnWidths := make(map[int]int)
+	if headerFound {
+		for i, col := range headerColumns {
+			// Ensure we only count non-empty columns and use trimmed length
+			trimmed := strings.TrimSpace(col)
+			if trimmed != "" && len(trimmed) > maxColumnWidths[i] {
+				maxColumnWidths[i] = len(trimmed)
+			}
+		}
+	}
+
+	for _, data := range allOutputs {
+		if data.err != nil {
+			continue
+		}
+		startIdx := 0
+		if headerFound && len(data.columns) > 1 {
+			startIdx = 1 // Skip header line
+		}
+		for i := startIdx; i < len(data.columns); i++ {
+			for j, col := range data.columns[i] {
+				// Ensure we only count non-empty columns and use trimmed length
+				trimmed := strings.TrimSpace(col)
+				if trimmed != "" && len(trimmed) > maxColumnWidths[j] {
+					maxColumnWidths[j] = len(trimmed)
+				}
+			}
+		}
+	}
+
+	// Helper function to pad and format columns
+	formatColumns := func(columns []string) string {
+		var parts []string
+		for i, col := range columns {
+			width := maxColumnWidths[i]
+			if width == 0 {
+				width = len(col) // Fallback if column not found in max widths
+			}
+			padded := col + strings.Repeat(" ", width-len(col))
+			parts = append(parts, padded)
+		}
+		// Join with 4 spaces (kubectl standard) and trim trailing spaces
+		return strings.TrimRight(strings.Join(parts, "    "), " ")
+	}
+
 	// Print header if found
 	if headerFound {
 		contextPadding := strings.Repeat(" ", maxContextWidth-len("CONTEXT"))
-		fmt.Printf("%s%s  %s\n", "CONTEXT", contextPadding, headerLine)
+		formattedHeader := formatColumns(headerColumns)
+		fmt.Printf("%s%s  %s\n", "CONTEXT", contextPadding, formattedHeader)
 	}
 
 	// Print all outputs
@@ -203,19 +279,19 @@ func formatDefaultOutput(results []contextResult) error {
 		}
 
 		startIdx := 0
-		if headerFound && len(data.lines) > 1 {
+		if headerFound && len(data.columns) > 1 {
 			startIdx = 1 // Skip header line
 		}
 
 		coloredContext := colorizeContext(data.context)
 		contextPadding := strings.Repeat(" ", maxContextWidth-len(data.context))
 
-		for i := startIdx; i < len(data.lines); i++ {
-			line := strings.TrimSpace(data.lines[i])
-			if line == "" {
+		for i := startIdx; i < len(data.columns); i++ {
+			if len(data.columns[i]) == 0 {
 				continue
 			}
-			fmt.Printf("%s%s  %s\n", coloredContext, contextPadding, line)
+			formattedLine := formatColumns(data.columns[i])
+			fmt.Printf("%s%s  %s\n", coloredContext, contextPadding, formattedLine)
 		}
 	}
 
