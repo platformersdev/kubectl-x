@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/platformersdev/kubectl-multi_context/cmd"
+	"github.com/platformersdev/kubectl-x/cmd"
 )
 
 func main() {

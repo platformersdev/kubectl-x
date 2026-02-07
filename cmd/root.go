@@ -8,9 +8,9 @@ var batchSize int = 25
 var filterPatterns []string
 
 var rootCmd = &cobra.Command{
-	Use:              "kubectl multi-context",
+	Use:              "kubectl x",
 	Short:            "Run kubectl commands against every context in kubeconfig",
-	Long:             `kubectl multi-context executes commands against all contexts in your kubeconfig file in parallel.`,
+	Long:             `kubectl x executes commands against all contexts in your kubeconfig file in parallel.`,
 	TraverseChildren: true, // this lets us use root-level flags, but still allow subcommands to disable flag parsing
 }
 
