@@ -10,6 +10,7 @@ A kubectl plugin that runs commands against every context in your kubeconfig fil
 - Filter contexts by name pattern
 - Support for `version`, `get`, and `logs` subcommands
 - Streaming log output with `-f` flag across all contexts
+- Watch mode with `-w`/`--watch` flag on get subcommand
 - Flexible output formatting:
   - Default: Adds a CONTEXT column to table output
   - JSON/YAML: Concatenates items with `.metadata.context` field
@@ -96,6 +97,15 @@ kubectl x get pods -o json
 
 # Get pods with YAML output
 kubectl x get pods -o yaml
+
+# Watch pods across all contexts
+kubectl x get pods -w
+
+# Watch with namespace
+kubectl x get pods -n default --watch
+
+# Watch-only (skip initial listing)
+kubectl x get pods --watch-only
 ```
 
 ### Logs Command
