@@ -63,7 +63,7 @@ func runKubectlCommand(context, subcommand string, extraArgs []string) (string, 
 	return string(output), err
 }
 
-func runStreamingCommand(subcommand string, extraArgs []string) error {
+func runStreamingCommand(subcommand string, extraArgs []string, filterHeaders bool) error {
 	contexts, err := getContexts()
 	if err != nil {
 		return fmt.Errorf("failed to get contexts: %w", err)
@@ -79,6 +79,9 @@ func runStreamingCommand(subcommand string, extraArgs []string) error {
 			maxWidth = len(ctx)
 		}
 	}
+	if filterHeaders && maxWidth < len("CONTEXT") {
+		maxWidth = len("CONTEXT")
+	}
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -87,6 +90,7 @@ func runStreamingCommand(subcommand string, extraArgs []string) error {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	var cmds []*exec.Cmd
+	var headerOnce sync.Once
 
 	for _, ctx := range contexts {
 		kubectlArgs := []string{"--context", ctx, subcommand}
@@ -116,7 +120,12 @@ func runStreamingCommand(subcommand string, extraArgs []string) error {
 		padding := strings.Repeat(" ", maxWidth-len(ctx))
 
 		wg.Add(1)
-		go streamLines(&wg, &mu, stdout, coloredCtx, padding, os.Stdout)
+		if filterHeaders {
+			contextHeader := "CONTEXT" + strings.Repeat(" ", maxWidth-len("CONTEXT"))
+			go streamLinesFilterHeader(&wg, &mu, stdout, coloredCtx, padding, contextHeader, os.Stdout, &headerOnce)
+		} else {
+			go streamLines(&wg, &mu, stdout, coloredCtx, padding, os.Stdout)
+		}
 
 		wg.Add(1)
 		go streamLines(&wg, &mu, stderr, coloredCtx, padding, os.Stderr)
@@ -152,6 +161,30 @@ func streamLines(wg *sync.WaitGroup, mu *sync.Mutex, reader io.Reader, coloredCt
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		line := scanner.Text()
+		mu.Lock()
+		fmt.Fprintf(dest, "%s%s  %s\n", coloredCtx, padding, line)
+		mu.Unlock()
+	}
+}
+
+// streamLinesFilterHeader prints the first line (header) exactly once across
+// all goroutines sharing the same headerOnce, then streams remaining lines
+// with the context prefix.
+func streamLinesFilterHeader(wg *sync.WaitGroup, mu *sync.Mutex, reader io.Reader, coloredCtx, padding, contextHeader string, dest *os.File, headerOnce *sync.Once) {
+	defer wg.Done()
+	scanner := bufio.NewScanner(reader)
+	firstLine := true
+	for scanner.Scan() {
+		line := scanner.Text()
+		if firstLine {
+			firstLine = false
+			headerOnce.Do(func() {
+				mu.Lock()
+				fmt.Fprintf(dest, "%s  %s\n", contextHeader, line)
+				mu.Unlock()
+			})
+			continue
+		}
 		mu.Lock()
 		fmt.Fprintf(dest, "%s%s  %s\n", coloredCtx, padding, line)
 		mu.Unlock()

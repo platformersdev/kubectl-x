@@ -11,7 +11,7 @@ var logsCmd = &cobra.Command{
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if isFollowMode(args) {
-			return runStreamingCommand("logs", args)
+			return runStreamingCommand("logs", args, false)
 		}
 		return runCommand("logs", args)
 	},
