@@ -23,4 +23,5 @@ func init() {
 	rootCmd.PersistentFlags().StringArrayVar(&filterPatterns, "filter", []string{}, "Filter contexts by name using regex pattern (can be specified multiple times for OR logic)")
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(getCmd)
+	rootCmd.AddCommand(logsCmd)
 }

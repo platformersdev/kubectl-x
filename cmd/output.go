@@ -412,6 +412,41 @@ func formatVersionOutput(results []contextResult) error {
 	return nil
 }
 
+func formatLogsOutput(results []contextResult) error {
+	maxContextWidth := 0
+	for _, result := range results {
+		if len(result.context) > maxContextWidth {
+			maxContextWidth = len(result.context)
+		}
+	}
+
+	for _, result := range results {
+		if result.err != nil {
+			coloredContext := colorizeContext(result.context)
+			fmt.Fprintf(os.Stderr, "Context %s: Error: %v\n", coloredContext, result.err)
+			if result.output != "" {
+				fmt.Fprintf(os.Stderr, "Output: %s\n", result.output)
+			}
+			continue
+		}
+
+		output := strings.TrimSpace(result.output)
+		if output == "" {
+			continue
+		}
+
+		lines := strings.Split(output, "\n")
+		coloredContext := colorizeContext(result.context)
+		padding := strings.Repeat(" ", maxContextWidth-len(result.context))
+
+		for _, line := range lines {
+			fmt.Printf("%s%s  %s\n", coloredContext, padding, line)
+		}
+	}
+
+	return nil
+}
+
 func formatJSONOutput(results []contextResult, subcommand string) error {
 	var allItems []map[string]interface{}
 
