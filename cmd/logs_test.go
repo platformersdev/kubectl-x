@@ -184,6 +184,70 @@ func TestFormatLogsOutput(t *testing.T) {
 	}
 }
 
+func TestFormatLogsOutputErrorsToStderr(t *testing.T) {
+	// Capture stderr
+	oldStderr := os.Stderr
+	stderrR, stderrW, _ := os.Pipe()
+	os.Stderr = stderrW
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdout = stdoutW
+
+	defer func() {
+		os.Stderr = oldStderr
+		os.Stdout = oldStdout
+		stderrW.Close()
+		stdoutW.Close()
+	}()
+
+	var stderrBuf, stdoutBuf bytes.Buffer
+	stderrDone := make(chan bool)
+	stdoutDone := make(chan bool)
+	go func() { io.Copy(&stderrBuf, stderrR); stderrDone <- true }()
+	go func() { io.Copy(&stdoutBuf, stdoutR); stdoutDone <- true }()
+
+	results := []contextResult{
+		{
+			context: "good-ctx",
+			output:  "healthy log line",
+			err:     nil,
+		},
+		{
+			context: "bad-ctx",
+			output:  "some error detail",
+			err:     fmt.Errorf("connection refused"),
+		},
+	}
+
+	err := formatLogsOutput(results)
+	stdoutW.Close()
+	stderrW.Close()
+	<-stdoutDone
+	<-stderrDone
+
+	if err != nil {
+		t.Fatalf("formatLogsOutput() returned error: %v", err)
+	}
+
+	stdout := stdoutBuf.String()
+	stderr := stderrBuf.String()
+
+	if !strings.Contains(stdout, "healthy log line") {
+		t.Errorf("stdout should contain successful log output, got %q", stdout)
+	}
+	if strings.Contains(stdout, "bad-ctx") {
+		t.Errorf("stdout should not contain error context output, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "bad-ctx") {
+		t.Errorf("stderr should contain the error context name, got %q", stderr)
+	}
+	if !strings.Contains(stderr, "connection refused") {
+		t.Errorf("stderr should contain the error message, got %q", stderr)
+	}
+}
+
 func TestStreamLines(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -240,5 +304,48 @@ func TestStreamLines(t *testing.T) {
 				t.Errorf("streamLines() output = %q, want %q", output, tt.expected)
 			}
 		})
+	}
+}
+
+func TestStreamLinesConcurrentWriters(t *testing.T) {
+	lineCount := 100
+
+	var ctx1Input, ctx2Input strings.Builder
+	for i := 0; i < lineCount; i++ {
+		fmt.Fprintf(&ctx1Input, "ctx1-line-%d\n", i)
+		fmt.Fprintf(&ctx2Input, "ctx2-line-%d\n", i)
+	}
+
+	r, w, _ := os.Pipe()
+	var buf bytes.Buffer
+	done := make(chan bool)
+	go func() {
+		io.Copy(&buf, r)
+		done <- true
+	}()
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	wg.Add(2)
+	go streamLines(&wg, &mu, strings.NewReader(ctx1Input.String()), "ctx1", "", w)
+	go streamLines(&wg, &mu, strings.NewReader(ctx2Input.String()), "ctx2", "", w)
+	wg.Wait()
+	w.Close()
+	<-done
+
+	output := buf.String()
+	lines := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
+
+	if len(lines) != lineCount*2 {
+		t.Fatalf("expected %d lines, got %d", lineCount*2, len(lines))
+	}
+
+	for i, line := range lines {
+		hasCtx1 := strings.HasPrefix(line, "ctx1  ctx1-line-")
+		hasCtx2 := strings.HasPrefix(line, "ctx2  ctx2-line-")
+		if !hasCtx1 && !hasCtx2 {
+			t.Errorf("line %d appears interleaved or malformed: %q", i, line)
+		}
 	}
 }

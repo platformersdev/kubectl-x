@@ -729,6 +729,37 @@ func TestFormatOutput(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:       "default format with logs subcommand",
+			format:     formatDefault,
+			subcommand: "logs",
+			results: []contextResult{
+				{
+					context: "ctx1",
+					output:  "2025-01-01T00:00:00Z first log line\n2025-01-01T00:00:01Z second log line",
+					err:     nil,
+				},
+				{
+					context: "ctx2",
+					output:  "2025-01-01T00:00:00Z another log line",
+					err:     nil,
+				},
+			},
+			checkFn: func(t *testing.T, output string) {
+				if strings.Contains(output, "CONTEXT") {
+					t.Errorf("formatOutput() for logs should not contain a CONTEXT header row")
+				}
+				lines := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
+				if len(lines) != 3 {
+					t.Errorf("formatOutput() for logs should produce 3 lines, got %d", len(lines))
+				}
+				for _, line := range lines {
+					if !strings.HasPrefix(line, "ctx1") && !strings.HasPrefix(line, "ctx2") {
+						t.Errorf("each line should be prefixed with a context name, got %q", line)
+					}
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
