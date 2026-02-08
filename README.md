@@ -8,7 +8,7 @@ A kubectl plugin that runs commands against every context in your kubeconfig fil
 - Run kubectl commands against all contexts simultaneously
 - Parallel execution with configurable batching (default: 25 contexts at a time)
 - Filter contexts by name pattern
-- Support for `version`, `get`, and `logs` subcommands
+- Support for `version`, `get`, `logs`, and `wait` subcommands
 - Streaming log output with `-f` flag across all contexts
 - Watch mode with `-w`/`--watch` flag on get subcommand
 - Flexible output formatting:
@@ -106,6 +106,24 @@ kubectl x get pods -n default --watch
 
 # Watch-only (skip initial listing)
 kubectl x get pods --watch-only
+```
+
+### Wait Command
+
+Run `kubectl wait` against all contexts:
+
+```bash
+# Wait for a pod to be ready across all contexts
+kubectl x wait --for=condition=ready pod/my-pod
+
+# Wait with a timeout
+kubectl x wait --for=condition=ready pod/my-pod --timeout=60s
+
+# Wait for all pods with a label selector
+kubectl x wait --for=condition=ready pods -l app=myapp -n default
+
+# Wait for a deployment rollout
+kubectl x wait --for=condition=available deployment/my-deploy
 ```
 
 ### Logs Command
