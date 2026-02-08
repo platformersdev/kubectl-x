@@ -13,18 +13,23 @@ A kubectl plugin that runs commands against every context in your kubeconfig fil
 - Watch mode with `-w`/`--watch` flag on get subcommand
 - Flexible output formatting:
   - Default: Adds a CONTEXT column to table output
-  - JSON/YAML: Concatenates items with `.metadata.context` field
+  - JSON/YAML: Concatenates items list, adds `.metadata.context` field
 
 
 ## Why another project?
 
-This functionality already exists in another projects, [kubectl-foreach](https://github.com/ahmetb/kubectl-foreach). That is a great project and I learned a lot from it. However, it does not output valid JSON or YAML and I wanted that option, as well as some other features.
+This functionality already exists in another project, [kubectl-foreach](https://github.com/ahmetb/kubectl-foreach). That is a great project and I learned a lot from it. However, it does not output valid JSON or YAML and I wanted that option, as well as some other features.
 
 
 ## Limitations
 
-- This is a v0.x project - the interface may change at any time and should not be relied upon for programmatic use.
-- The author of this project does not intend to support write operations via the tool. If you desire to do that, we encourage you to come up with your own tooling or look elsewhere.
+### Unstable API
+
+This is a v0.x project - the interface may change at any time and should not be relied upon for programmatic use.
+
+### Read-only operations
+
+The author of this project does not intend to support write operations via the tool. If you desire to do that, we encourage you to come up with your own tooling or look elsewhere.
 
 
 ## Installation
