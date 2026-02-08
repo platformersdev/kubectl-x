@@ -533,7 +533,6 @@ func TestFormatJSONOutput(t *testing.T) {
 			}
 
 			output := stdout.String()
-			// Normalize whitespace for comparison
 			output = strings.TrimSpace(output)
 			expected := strings.TrimSpace(tt.expected)
 			if output != expected {

@@ -30,17 +30,14 @@ func TestGetKubeconfigPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save original value
 			originalKubeconfig := os.Getenv("KUBECONFIG")
 
-			// Set test value
 			if tt.kubeconfigEnv != "" {
 				os.Setenv("KUBECONFIG", tt.kubeconfigEnv)
 			} else {
 				os.Unsetenv("KUBECONFIG")
 			}
 
-			// Clean up
 			defer func() {
 				if originalKubeconfig != "" {
 					os.Setenv("KUBECONFIG", originalKubeconfig)
@@ -56,12 +53,10 @@ func TestGetKubeconfigPath(t *testing.T) {
 					t.Errorf("getKubeconfigPath() = %q, want %q", result, tt.expectedPrefix)
 				}
 			} else {
-				// Check that it ends with the expected suffix
 				if !filepath.IsAbs(result) {
 					t.Errorf("getKubeconfigPath() = %q, want absolute path", result)
 				}
 				if filepath.Base(result) != "config" {
-					// Check that it's in a .kube directory
 					dir := filepath.Dir(result)
 					if filepath.Base(dir) != ".kube" {
 						t.Errorf("getKubeconfigPath() = %q, want path ending in .kube/config", result)
@@ -207,13 +202,11 @@ func TestFilterContexts(t *testing.T) {
 				return
 			}
 
-			// Compare slices - handle empty slices specially
 			if len(got) != len(tt.want) {
 				t.Errorf("filterContexts() length = %d, want %d", len(got), len(tt.want))
 				return
 			}
 			if len(got) == 0 && len(tt.want) == 0 {
-				// Both empty, consider equal
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {

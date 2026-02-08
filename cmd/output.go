@@ -20,7 +20,6 @@ const (
 	formatYAML    outputFormat = "yaml"
 )
 
-// ANSI color codes for terminal output
 const (
 	colorReset  = "\033[0m"
 	colorRed    = "\033[31m"
@@ -33,7 +32,6 @@ const (
 	colorGray   = "\033[90m"
 )
 
-// Color palette for context names - using bright colors for better visibility
 var contextColors = []string{
 	"\033[91m", // Bright Red
 	"\033[92m", // Bright Green
@@ -50,7 +48,6 @@ var contextColors = []string{
 	"\033[36m", // Cyan
 }
 
-// isTerminal checks if stdout is a terminal
 func isTerminal() bool {
 	return term.IsTerminal(int(os.Stdout.Fd()))
 }
@@ -69,7 +66,6 @@ func getContextColor(context string) string {
 	return contextColors[hashValue%uint32(len(contextColors))]
 }
 
-// colorizeContext returns a colored version of the context name
 func colorizeContext(context string) string {
 	color := getContextColor(context)
 	if color == "" {
@@ -135,16 +131,13 @@ func formatOutput(results []contextResult, format outputFormat, subcommand strin
 }
 
 func formatDefaultOutput(results []contextResult) error {
-	// parseColumns splits a line into columns by detecting column boundaries (2+ spaces or tabs)
 	// kubectl output uses multiple spaces to separate columns
 	columnSeparator := regexp.MustCompile(`[ \t]{2,}`)
 	parseColumns := func(line string) []string {
-		// Split on 2+ spaces or tabs
 		parts := columnSeparator.Split(line, -1)
 		var columns []string
 		for _, part := range parts {
 			trimmed := strings.TrimSpace(part)
-			// Only include non-empty parts (skip empty strings from multiple consecutive separators)
 			if trimmed != "" {
 				columns = append(columns, trimmed)
 			}
@@ -221,7 +214,6 @@ func formatDefaultOutput(results []contextResult) error {
 	maxColumnWidths := make(map[int]int)
 	if headerFound {
 		for i, col := range headerColumns {
-			// Ensure we only count non-empty columns and use trimmed length
 			trimmed := strings.TrimSpace(col)
 			if trimmed != "" && len(trimmed) > maxColumnWidths[i] {
 				maxColumnWidths[i] = len(trimmed)
@@ -239,7 +231,6 @@ func formatDefaultOutput(results []contextResult) error {
 		}
 		for i := startIdx; i < len(data.columns); i++ {
 			for j, col := range data.columns[i] {
-				// Ensure we only count non-empty columns and use trimmed length
 				trimmed := strings.TrimSpace(col)
 				if trimmed != "" && len(trimmed) > maxColumnWidths[j] {
 					maxColumnWidths[j] = len(trimmed)
@@ -248,13 +239,12 @@ func formatDefaultOutput(results []contextResult) error {
 		}
 	}
 
-	// Helper function to pad and format columns
 	formatColumns := func(columns []string) string {
 		var parts []string
 		for i, col := range columns {
 			width := maxColumnWidths[i]
 			if width == 0 {
-				width = len(col) // Fallback if column not found in max widths
+				width = len(col)
 			}
 			padded := col + strings.Repeat(" ", width-len(col))
 			parts = append(parts, padded)
@@ -263,14 +253,12 @@ func formatDefaultOutput(results []contextResult) error {
 		return strings.TrimRight(strings.Join(parts, "    "), " ")
 	}
 
-	// Print header if found
 	if headerFound {
 		contextPadding := strings.Repeat(" ", maxContextWidth-len("CONTEXT"))
 		formattedHeader := formatColumns(headerColumns)
 		fmt.Printf("%s%s  %s\n", "CONTEXT", contextPadding, formattedHeader)
 	}
 
-	// Print all outputs
 	for _, data := range allOutputs {
 		if data.err != nil {
 			coloredContext := colorizeContext(data.context)
@@ -308,7 +296,6 @@ func formatVersionOutput(results []contextResult) error {
 		serverVersion    string
 	}
 
-	// Parse version information from results
 	versionData := make(map[string]versionInfo)
 	var clientVersion, kustomizeVersion string
 
@@ -323,7 +310,6 @@ func formatVersionOutput(results []contextResult) error {
 			continue
 		}
 
-		// Extract client and kustomize version (same for all contexts)
 		lines := strings.Split(output, "\n")
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
@@ -336,7 +322,6 @@ func formatVersionOutput(results []contextResult) error {
 				kustomizeVersion = strings.TrimSpace(kustomizeVersion)
 			}
 		}
-		// Continue looking if we haven't found both yet
 		if clientVersion != "" && kustomizeVersion != "" {
 			break
 		}
@@ -363,7 +348,6 @@ func formatVersionOutput(results []contextResult) error {
 			continue
 		}
 
-		// Extract server version
 		var serverVersion string
 		lines := strings.Split(output, "\n")
 		for _, line := range lines {
@@ -384,7 +368,6 @@ func formatVersionOutput(results []contextResult) error {
 		}
 	}
 
-	// Print client and kustomize version at the top
 	if clientVersion != "" {
 		fmt.Printf("Client Version: %s\n", clientVersion)
 	}
@@ -395,11 +378,9 @@ func formatVersionOutput(results []contextResult) error {
 		fmt.Println()
 	}
 
-	// Print table header
 	fmt.Printf("%-30s  %s\n", "CONTEXT", "SERVER VERSION")
 	fmt.Println(strings.Repeat("-", 50))
 
-	// Print table rows
 	for _, result := range results {
 		info := versionData[result.context]
 		coloredContext := colorizeContext(result.context)
@@ -474,11 +455,9 @@ func formatJSONOutput(results []contextResult, subcommand string) error {
 			continue
 		}
 
-		// Extract items array if it exists
 		if itemsArray, exists := data["items"]; exists {
 			items, ok := itemsArray.([]interface{})
 			if !ok {
-				// Try to convert if it's not the right type
 				if itemsSlice, ok := itemsArray.([]interface{}); ok {
 					items = itemsSlice
 				} else {
@@ -486,7 +465,6 @@ func formatJSONOutput(results []contextResult, subcommand string) error {
 				}
 			}
 
-			// Add context metadata to each item
 			for _, item := range items {
 				if itemMap, ok := item.(map[string]interface{}); ok {
 					if metadata, ok := itemMap["metadata"].(map[string]interface{}); ok {
@@ -500,8 +478,7 @@ func formatJSONOutput(results []contextResult, subcommand string) error {
 				}
 			}
 		} else {
-			// No items array - this might be a single object or non-list response
-			// Add context to the root object
+			// Single object or non-list response
 			if metadata, ok := data["metadata"].(map[string]interface{}); ok {
 				metadata["context"] = result.context
 			} else {
@@ -550,11 +527,9 @@ func formatYAMLOutput(results []contextResult, subcommand string) error {
 			continue
 		}
 
-		// Extract items array if it exists
 		if itemsArray, exists := data["items"]; exists {
 			items, ok := itemsArray.([]interface{})
 			if !ok {
-				// Try to convert if it's not the right type
 				if itemsSlice, ok := itemsArray.([]interface{}); ok {
 					items = itemsSlice
 				} else {
@@ -562,7 +537,6 @@ func formatYAMLOutput(results []contextResult, subcommand string) error {
 				}
 			}
 
-			// Add context metadata to each item
 			for _, item := range items {
 				if itemMap, ok := item.(map[string]interface{}); ok {
 					if metadata, ok := itemMap["metadata"].(map[string]interface{}); ok {
@@ -576,8 +550,7 @@ func formatYAMLOutput(results []contextResult, subcommand string) error {
 				}
 			}
 		} else {
-			// No items array - this might be a single object or non-list response
-			// Add context to the root object
+			// Single object or non-list response
 			if metadata, ok := data["metadata"].(map[string]interface{}); ok {
 				metadata["context"] = result.context
 			} else {

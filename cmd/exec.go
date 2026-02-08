@@ -36,8 +36,8 @@ func runCommand(subcommand string, extraArgs []string) error {
 		wg.Add(1)
 		go func(index int, context string) {
 			defer wg.Done()
-			semaphore <- struct{}{}        // Acquire semaphore
-			defer func() { <-semaphore }() // Release semaphore
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
 
 			output, err := runKubectlCommand(context, subcommand, extraArgs)
 			results[index] = contextResult{
@@ -50,10 +50,7 @@ func runCommand(subcommand string, extraArgs []string) error {
 
 	wg.Wait()
 
-	// Determine output format
 	outputFormat := detectOutputFormat(extraArgs)
-
-	// Format and print results
 	return formatOutput(results, outputFormat, subcommand)
 }
 
