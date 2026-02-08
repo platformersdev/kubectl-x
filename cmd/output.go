@@ -127,6 +127,9 @@ func formatOutput(results []contextResult, format outputFormat, subcommand strin
 		if subcommand == "version" {
 			return formatVersionOutput(results)
 		}
+		if subcommand == "logs" {
+			return formatLogsOutput(results)
+		}
 		return formatDefaultOutput(results)
 	}
 }
@@ -407,6 +410,41 @@ func formatVersionOutput(results []contextResult) error {
 			padding = strings.Repeat(" ", 30-contextLen)
 		}
 		fmt.Printf("%s%s  %s\n", coloredContext, padding, info.serverVersion)
+	}
+
+	return nil
+}
+
+func formatLogsOutput(results []contextResult) error {
+	maxContextWidth := 0
+	for _, result := range results {
+		if len(result.context) > maxContextWidth {
+			maxContextWidth = len(result.context)
+		}
+	}
+
+	for _, result := range results {
+		if result.err != nil {
+			coloredContext := colorizeContext(result.context)
+			fmt.Fprintf(os.Stderr, "Context %s: Error: %v\n", coloredContext, result.err)
+			if result.output != "" {
+				fmt.Fprintf(os.Stderr, "Output: %s\n", result.output)
+			}
+			continue
+		}
+
+		output := strings.TrimSpace(result.output)
+		if output == "" {
+			continue
+		}
+
+		lines := strings.Split(output, "\n")
+		coloredContext := colorizeContext(result.context)
+		padding := strings.Repeat(" ", maxContextWidth-len(result.context))
+
+		for _, line := range lines {
+			fmt.Printf("%s%s  %s\n", coloredContext, padding, line)
+		}
 	}
 
 	return nil

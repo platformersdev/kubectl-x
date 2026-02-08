@@ -8,7 +8,8 @@ A kubectl plugin that runs commands against every context in your kubeconfig fil
 - Run kubectl commands against all contexts simultaneously
 - Parallel execution with configurable batching (default: 25 contexts at a time)
 - Filter contexts by name pattern
-- Support for `version` and `get` subcommands
+- Support for `version`, `get`, and `logs` subcommands
+- Streaming log output with `-f` flag across all contexts
 - Flexible output formatting:
   - Default: Adds a CONTEXT column to table output
   - JSON/YAML: Concatenates items with `.metadata.context` field
@@ -95,6 +96,24 @@ kubectl x get pods -o json
 
 # Get pods with YAML output
 kubectl x get pods -o yaml
+```
+
+### Logs Command
+
+Run `kubectl logs` against all contexts:
+
+```bash
+# Get logs for a pod across all contexts
+kubectl x logs my-pod
+
+# Get logs with namespace
+kubectl x logs my-pod -n default
+
+# Stream logs in real-time across all contexts
+kubectl x logs my-pod -f
+
+# Stream logs with additional flags
+kubectl x logs my-pod -f --tail=100 -n default
 ```
 
 ## Output Formats
