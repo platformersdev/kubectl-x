@@ -1,8 +1,0 @@
----
-alwaysApply: true
----
-
-- Add unit tests
-- Update the README
-- Unit tests should only test the code in this repository: we don't need to test library code
-- Commends that are obvious should not be used. e.g., "getName() returns a name" is redundant
