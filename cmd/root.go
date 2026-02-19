@@ -24,5 +24,6 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(getCmd)
 	rootCmd.AddCommand(logsCmd)
+	rootCmd.AddCommand(topCmd)
 	rootCmd.AddCommand(waitCmd)
 }
