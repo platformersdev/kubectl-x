@@ -123,7 +123,7 @@ func formatOutput(results []contextResult, format outputFormat, subcommand strin
 		if subcommand == "version" {
 			return formatVersionOutput(results)
 		}
-		if subcommand == "logs" {
+		if subcommand == "logs" || subcommand == "api-versions" {
 			return formatLogsOutput(results)
 		}
 		return formatDefaultOutput(results)

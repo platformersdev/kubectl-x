@@ -8,7 +8,7 @@ A kubectl plugin that runs commands against every context in your kubeconfig fil
 - Run kubectl commands against all contexts simultaneously
 - Parallel execution with configurable batching (default: 25 contexts at a time)
 - Filter contexts by name pattern
-- Support for `version`, `get`, `logs`, `wait`, `top`, and `events` subcommands
+- Support for `version`, `get`, `logs`, `wait`, `top`, `events`, `api-resources`, and `api-versions` subcommands
 - Streaming log output with `-f` flag across all contexts
 - Watch mode with `-w`/`--watch` flag on `get` and `events` subcommands
 - Flexible output formatting:
@@ -168,6 +168,30 @@ kubectl x events -n default --watch
 
 # Watch-only (skip initial listing)
 kubectl x events --watch-only
+```
+
+### API Resources Command
+
+Run `kubectl api-resources` against all contexts:
+
+```bash
+# List all API resources from all contexts
+kubectl x api-resources
+
+# List namespaced resources only
+kubectl x api-resources --namespaced=true
+
+# List resources for a specific API group
+kubectl x api-resources --api-group=apps
+```
+
+### API Versions Command
+
+Run `kubectl api-versions` against all contexts:
+
+```bash
+# List all API versions from all contexts
+kubectl x api-versions
 ```
 
 ## Output Formats

@@ -27,4 +27,6 @@ func init() {
 	rootCmd.AddCommand(topCmd)
 	rootCmd.AddCommand(waitCmd)
 	rootCmd.AddCommand(eventsCmd)
+	rootCmd.AddCommand(apiResourcesCmd)
+	rootCmd.AddCommand(apiVersionsCmd)
 }
