@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "tag-on-main" ]  
   pull_request:
     branches: [ main ]
 
@@ -36,7 +36,7 @@ jobs:
   tag:
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/tag-on-main'
     permissions:
       contents: write
 
