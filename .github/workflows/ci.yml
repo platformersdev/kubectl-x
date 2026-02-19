@@ -2,23 +2,23 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main ]  
   pull_request:
     branches: [ main ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
         go-version: '1.25'
-        
+
     - name: Check formatting with gofmt
       run: |
         if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
@@ -26,10 +26,105 @@ jobs:
           gofmt -s -d .
           exit 1
         fi
-        
+
     - name: Run tests
       run: go test -v -cover ./...
-      
+
     - name: Build
       run: go build -v .
 
+  tag:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Create and push tag
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag v0.0.${{ github.run_number }}
+        git push origin v0.0.${{ github.run_number }}
+
+  build:
+    needs: tag
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact: kubectl-x-linux-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            artifact: kubectl-x-darwin-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact: kubectl-x-darwin-arm64
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+
+    - name: Build
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+      run: go build -o ${{ matrix.artifact }} .
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact }}
+        path: ${{ matrix.artifact }}
+        if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        merge-multiple: false
+
+    - name: Prepare release files
+      run: |
+        mkdir -p release
+        find artifacts -name "kubectl-x-*" -type f -exec cp {} release/ \;
+        chmod +x release/*
+        ls -lh release/
+
+    - name: Create Release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh release create v0.0.${{ github.run_number }} release/* \
+          --title "Release v0.0.${{ github.run_number }}" \
+          --generate-notes
