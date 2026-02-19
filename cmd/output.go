@@ -253,6 +253,16 @@ func formatDefaultOutput(results []contextResult) error {
 		return strings.TrimRight(strings.Join(parts, "    "), " ")
 	}
 
+	for _, data := range allOutputs {
+		if data.err != nil {
+			coloredContext := colorizeContext(data.context)
+			fmt.Fprintf(os.Stderr, "Context %s: Error: %v\n", coloredContext, data.err)
+			if data.errMsg != "" {
+				fmt.Fprintf(os.Stderr, "Output: %s\n", data.errMsg)
+			}
+		}
+	}
+
 	if headerFound {
 		contextPadding := strings.Repeat(" ", maxContextWidth-len("CONTEXT"))
 		formattedHeader := formatColumns(headerColumns)
@@ -261,11 +271,6 @@ func formatDefaultOutput(results []contextResult) error {
 
 	for _, data := range allOutputs {
 		if data.err != nil {
-			coloredContext := colorizeContext(data.context)
-			fmt.Fprintf(os.Stderr, "Context %s: Error: %v\n", coloredContext, data.err)
-			if data.errMsg != "" {
-				fmt.Fprintf(os.Stderr, "Output: %s\n", data.errMsg)
-			}
 			continue
 		}
 
@@ -333,10 +338,6 @@ func formatVersionOutput(results []contextResult) error {
 			versionData[result.context] = versionInfo{
 				serverVersion: "ERROR",
 			}
-			fmt.Fprintf(os.Stderr, "Context %s: Error: %v\n", result.context, result.err)
-			if result.output != "" {
-				fmt.Fprintf(os.Stderr, "Output: %s\n", result.output)
-			}
 			continue
 		}
 
@@ -365,6 +366,15 @@ func formatVersionOutput(results []contextResult) error {
 
 		versionData[result.context] = versionInfo{
 			serverVersion: serverVersion,
+		}
+	}
+
+	for _, result := range results {
+		if result.err != nil {
+			fmt.Fprintf(os.Stderr, "Context %s: Error: %v\n", result.context, result.err)
+			if result.output != "" {
+				fmt.Fprintf(os.Stderr, "Output: %s\n", result.output)
+			}
 		}
 	}
 
@@ -411,6 +421,11 @@ func formatLogsOutput(results []contextResult) error {
 			if result.output != "" {
 				fmt.Fprintf(os.Stderr, "Output: %s\n", result.output)
 			}
+		}
+	}
+
+	for _, result := range results {
+		if result.err != nil {
 			continue
 		}
 
