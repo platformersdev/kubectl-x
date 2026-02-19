@@ -29,7 +29,7 @@ This is a v0.x project - the interface may change at any time and should not be 
 
 ### Read-only operations
 
-The author of this project does not intend to support write operations via the tool. If you desire to do that, we encourage you to come up with your own tooling or look elsewhere.
+The authors of this project do not intend to support write operations (`apply`, `delete`, etc.) via the tool. If you desire to do that, we encourage you to come up with your own tooling, fork the project, or look elsewhere.
 
 
 ## Installation
