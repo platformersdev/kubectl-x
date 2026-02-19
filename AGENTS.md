@@ -1,10 +1,9 @@
 # Agent Guidelines
 
-- Add unit tests.
-- Update the README.
-- Unit tests should only test code in this repository; library code does not need direct tests.
 - Avoid comments that are obvious (for example, `getName()` returns a name).
-- don't add "Made with Cursor" to the bottom of PRs
+- Update the README.
+- Add unit tests.
+  - Unit tests should only test code in this repository; library code does not need direct tests.
 
 ## Workflow
 
@@ -16,3 +15,4 @@ When I ask you to implement a ticket:
 - Open a PR for the ticket
   - Open PRs in the browser, don't use the CLI
   - The title should be the ticket name and the description should be "closes #<ticket number>"
+  - don't add "Made with Cursor" to the bottom of PRs
