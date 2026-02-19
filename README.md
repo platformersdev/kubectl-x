@@ -8,9 +8,9 @@ A kubectl plugin that runs commands against every context in your kubeconfig fil
 - Run kubectl commands against all contexts simultaneously
 - Parallel execution with configurable batching (default: 25 contexts at a time)
 - Filter contexts by name pattern
-- Support for `version`, `get`, `logs`, and `wait` subcommands
+- Support for `version`, `get`, `logs`, `wait`, `top`, and `events` subcommands
 - Streaming log output with `-f` flag across all contexts
-- Watch mode with `-w`/`--watch` flag on get subcommand
+- Watch mode with `-w`/`--watch` flag on `get` and `events` subcommands
 - Flexible output formatting:
   - Default: Adds a CONTEXT column to table output
   - JSON/YAML: Concatenates items list, adds `.metadata.context` field
@@ -147,6 +147,27 @@ kubectl x logs my-pod -f
 
 # Stream logs with additional flags
 kubectl x logs my-pod -f --tail=100 -n default
+```
+
+### Events Command
+
+Run `kubectl events` against all contexts:
+
+```bash
+# Get events from all contexts
+kubectl x events
+
+# Get events in a specific namespace
+kubectl x events -n default
+
+# Watch events across all contexts in real-time
+kubectl x events -w
+
+# Watch events in a specific namespace
+kubectl x events -n default --watch
+
+# Watch-only (skip initial listing)
+kubectl x events --watch-only
 ```
 
 ## Output Formats
