@@ -255,6 +255,141 @@ func TestFormatDefaultOutput(t *testing.T) {
 	}
 }
 
+func captureOutputAndStderr(fn func()) (stdout, stderr string) {
+	rOut, wOut, _ := os.Pipe()
+	rErr, wErr, _ := os.Pipe()
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+	os.Stdout = wOut
+	os.Stderr = wErr
+
+	fn()
+
+	wOut.Close()
+	wErr.Close()
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	var bufOut, bufErr bytes.Buffer
+	io.Copy(&bufOut, rOut)
+	io.Copy(&bufErr, rErr)
+	return bufOut.String(), bufErr.String()
+}
+
+func captureOutputCombined(fn func()) string {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+	os.Stdout = w
+	os.Stderr = w
+
+	fn()
+
+	w.Close()
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	return buf.String()
+}
+
+func TestFormatDefaultOutputErrorsBeforeOutput(t *testing.T) {
+	results := []contextResult{
+		{
+			context: "ctx1",
+			output:  "NAME    STATUS\npod1    Running",
+			err:     nil,
+		},
+		{
+			context: "ctx2",
+			output:  "error message",
+			err:     fmt.Errorf("connection failed"),
+		},
+	}
+
+	combined := captureOutputCombined(func() {
+		formatDefaultOutput(results)
+	})
+
+	errIdx := strings.Index(combined, "Error:")
+	normalIdx := strings.Index(combined, "pod1")
+
+	if errIdx == -1 {
+		t.Fatal("expected error message in combined output")
+	}
+	if normalIdx == -1 {
+		t.Fatal("expected normal output in combined output")
+	}
+	if errIdx > normalIdx {
+		t.Errorf("error (at index %d) should appear before normal output (at index %d)", errIdx, normalIdx)
+	}
+}
+
+func TestFormatLogsOutputErrorsBeforeOutput(t *testing.T) {
+	results := []contextResult{
+		{
+			context: "ctx1",
+			output:  "log line one\nlog line two",
+			err:     nil,
+		},
+		{
+			context: "ctx2",
+			output:  "error message",
+			err:     fmt.Errorf("connection failed"),
+		},
+	}
+
+	combined := captureOutputCombined(func() {
+		formatLogsOutput(results)
+	})
+
+	errIdx := strings.Index(combined, "Error:")
+	normalIdx := strings.Index(combined, "log line one")
+
+	if errIdx == -1 {
+		t.Fatal("expected error message in combined output")
+	}
+	if normalIdx == -1 {
+		t.Fatal("expected normal output in combined output")
+	}
+	if errIdx > normalIdx {
+		t.Errorf("error (at index %d) should appear before normal output (at index %d)", errIdx, normalIdx)
+	}
+}
+
+func TestFormatVersionOutputErrorsBeforeOutput(t *testing.T) {
+	results := []contextResult{
+		{
+			context: "ctx1",
+			output:  "Client Version: v1.34.3\nServer Version: v1.34.0",
+			err:     nil,
+		},
+		{
+			context: "ctx2",
+			output:  "error message",
+			err:     fmt.Errorf("connection failed"),
+		},
+	}
+
+	combined := captureOutputCombined(func() {
+		formatVersionOutput(results)
+	})
+
+	errIdx := strings.Index(combined, "Error:")
+	tableIdx := strings.Index(combined, "SERVER VERSION")
+
+	if errIdx == -1 {
+		t.Fatal("expected error message in combined output")
+	}
+	if tableIdx == -1 {
+		t.Fatal("expected table header in combined output")
+	}
+	if errIdx > tableIdx {
+		t.Errorf("error (at index %d) should appear before table output (at index %d)", errIdx, tableIdx)
+	}
+}
+
 func TestFormatVersionOutput(t *testing.T) {
 	tests := []struct {
 		name     string
