@@ -18,7 +18,7 @@ A kubectl plugin that runs commands against every context in your kubeconfig fil
 
 ## Why another project?
 
-This functionality already exists in another project, [kubectl-foreach](https://github.com/ahmetb/kubectl-foreach). That is a great project and I learned a lot from it. However, it does not output valid JSON or YAML and I wanted that option, as well as some other features.
+This functionality already exists in some other projects, including [kubectl-foreach](https://github.com/ahmetb/kubectl-foreach), [kubectl-cluster-group](https://github.com/u2takey/kubectl-clusters), and [kubectl-allctx](https://github.com/onatm/kubectl-allctx). These are all great projects and I learned a lot from them. However, none of them output valid JSON or YAML and I wanted that option, as well as some other features.
 
 
 ## Limitations
