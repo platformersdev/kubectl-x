@@ -8,6 +8,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStreamLines(t *testing.T) {
@@ -61,10 +64,7 @@ func TestStreamLines(t *testing.T) {
 			w.Close()
 			<-done
 
-			output := buf.String()
-			if output != tt.expected {
-				t.Errorf("streamLines() output = %q, want %q", output, tt.expected)
-			}
+			assert.Equal(t, tt.expected, buf.String())
 		})
 	}
 }
@@ -96,19 +96,13 @@ func TestStreamLinesConcurrentWriters(t *testing.T) {
 	w.Close()
 	<-done
 
-	output := buf.String()
-	lines := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
-
-	if len(lines) != lineCount*2 {
-		t.Fatalf("expected %d lines, got %d", lineCount*2, len(lines))
-	}
+	lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
+	require.Len(t, lines, lineCount*2)
 
 	for i, line := range lines {
 		hasCtx1 := strings.HasPrefix(line, "ctx1  ctx1-line-")
 		hasCtx2 := strings.HasPrefix(line, "ctx2  ctx2-line-")
-		if !hasCtx1 && !hasCtx2 {
-			t.Errorf("line %d appears interleaved or malformed: %q", i, line)
-		}
+		assert.True(t, hasCtx1 || hasCtx2, "line %d appears interleaved or malformed: %q", i, line)
 	}
 }
 
@@ -175,10 +169,7 @@ func TestStreamLinesFilterHeader(t *testing.T) {
 			w.Close()
 			<-done
 
-			output := buf.String()
-			if output != tt.expected {
-				t.Errorf("streamLinesFilterHeader() output = %q, want %q", output, tt.expected)
-			}
+			assert.Equal(t, tt.expected, buf.String())
 		})
 	}
 }
@@ -212,23 +203,11 @@ func TestStreamLinesFilterHeaderDeduplicatesAcrossContexts(t *testing.T) {
 
 	output := buf.String()
 
-	headerCount := strings.Count(output, "CONTEXT")
-	if headerCount != 1 {
-		t.Errorf("expected header to appear exactly once, got %d times in %q", headerCount, output)
-	}
-
-	if !strings.Contains(output, "CONTEXT  NAME    STATUS") {
-		t.Errorf("expected unified header line, got %q", output)
-	}
-	if !strings.Contains(output, "ctx1    pod1    Running") {
-		t.Errorf("expected ctx1 data line, got %q", output)
-	}
-	if !strings.Contains(output, "ctx2    pod2    Pending") {
-		t.Errorf("expected ctx2 data line, got %q", output)
-	}
+	assert.Equal(t, 1, strings.Count(output, "CONTEXT"), "header should appear exactly once")
+	assert.Contains(t, output, "CONTEXT  NAME    STATUS")
+	assert.Contains(t, output, "ctx1    pod1    Running")
+	assert.Contains(t, output, "ctx2    pod2    Pending")
 
 	lines := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
-	if len(lines) != 3 {
-		t.Errorf("expected 3 lines (1 header + 2 data), got %d: %q", len(lines), output)
-	}
+	assert.Len(t, lines, 3, "expected 1 header + 2 data lines")
 }

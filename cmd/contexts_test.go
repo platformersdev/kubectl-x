@@ -3,28 +3,27 @@ package cmd
 import (
 	"os"
 	"path/filepath"
-	"reflect"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetKubeconfigPath(t *testing.T) {
 	tests := []struct {
-		name           string
-		kubeconfigEnv  string
-		expectedPrefix string
-		expectedSuffix string
+		name          string
+		kubeconfigEnv string
+		wantExact     string
+		wantSuffix    string
 	}{
 		{
-			name:           "with KUBECONFIG env set",
-			kubeconfigEnv:  "/custom/path/config",
-			expectedPrefix: "/custom/path/config",
-			expectedSuffix: "",
+			name:          "with KUBECONFIG env set",
+			kubeconfigEnv: "/custom/path/config",
+			wantExact:     "/custom/path/config",
 		},
 		{
-			name:           "without KUBECONFIG env",
-			kubeconfigEnv:  "",
-			expectedSuffix: ".kube/config",
+			name:       "without KUBECONFIG env",
+			wantSuffix: ".kube/config",
 		},
 	}
 
@@ -48,20 +47,12 @@ func TestGetKubeconfigPath(t *testing.T) {
 
 			result := getKubeconfigPath()
 
-			if tt.expectedPrefix != "" {
-				if result != tt.expectedPrefix {
-					t.Errorf("getKubeconfigPath() = %q, want %q", result, tt.expectedPrefix)
-				}
+			if tt.wantExact != "" {
+				assert.Equal(t, tt.wantExact, result)
 			} else {
-				if !filepath.IsAbs(result) {
-					t.Errorf("getKubeconfigPath() = %q, want absolute path", result)
-				}
-				if filepath.Base(result) != "config" {
-					dir := filepath.Dir(result)
-					if filepath.Base(dir) != ".kube" {
-						t.Errorf("getKubeconfigPath() = %q, want path ending in .kube/config", result)
-					}
-				}
+				assert.True(t, filepath.IsAbs(result), "expected absolute path, got %q", result)
+				assert.Equal(t, "config", filepath.Base(result))
+				assert.Equal(t, ".kube", filepath.Base(filepath.Dir(result)))
 			}
 		})
 	}
@@ -73,8 +64,7 @@ func TestFilterContexts(t *testing.T) {
 		contexts  []string
 		patterns  []string
 		want      []string
-		wantError bool
-		errorMsg  string
+		wantError string
 	}{
 		{
 			name:     "empty patterns returns all contexts",
@@ -152,15 +142,13 @@ func TestFilterContexts(t *testing.T) {
 			name:      "invalid regex pattern",
 			contexts:  []string{"prod-cluster", "dev-cluster"},
 			patterns:  []string{"[invalid"},
-			wantError: true,
-			errorMsg:  "invalid regex pattern",
+			wantError: "invalid regex pattern",
 		},
 		{
 			name:      "invalid regex pattern in multiple patterns",
 			contexts:  []string{"prod-cluster", "dev-cluster"},
 			patterns:  []string{"prod", "[invalid", "dev"},
-			wantError: true,
-			errorMsg:  "invalid regex pattern",
+			wantError: "invalid regex pattern",
 		},
 		{
 			name:     "complex regex pattern",
@@ -186,31 +174,18 @@ func TestFilterContexts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := filterContexts(tt.contexts, tt.patterns)
 
-			if tt.wantError {
-				if err == nil {
-					t.Errorf("filterContexts() expected error but got none")
-					return
-				}
-				if tt.errorMsg != "" && !strings.Contains(err.Error(), tt.errorMsg) {
-					t.Errorf("filterContexts() error = %v, want error containing %q", err, tt.errorMsg)
-				}
+			if tt.wantError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantError)
 				return
 			}
 
-			if err != nil {
-				t.Errorf("filterContexts() unexpected error = %v", err)
-				return
-			}
+			require.NoError(t, err)
 
-			if len(got) != len(tt.want) {
-				t.Errorf("filterContexts() length = %d, want %d", len(got), len(tt.want))
-				return
-			}
-			if len(got) == 0 && len(tt.want) == 0 {
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("filterContexts() = %v, want %v", got, tt.want)
+			if len(tt.want) == 0 {
+				assert.Empty(t, got)
+			} else {
+				assert.Equal(t, tt.want, got)
 			}
 		})
 	}

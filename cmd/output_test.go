@@ -7,6 +7,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDetectOutputFormat(t *testing.T) {
@@ -104,155 +107,24 @@ func TestDetectOutputFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := detectOutputFormat(tt.args)
-			if result != tt.expected {
-				t.Errorf("detectOutputFormat(%v) = %v, want %v", tt.args, result, tt.expected)
-			}
+			assert.Equal(t, tt.expected, detectOutputFormat(tt.args))
 		})
 	}
 }
 
-func TestFormatDefaultOutput(t *testing.T) {
-	tests := []struct {
-		name     string
-		results  []contextResult
-		expected string
-	}{
-		{
-			name: "single context with header",
-			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "NAME    STATUS    AGE\npod1    Running   5m",
-					err:     nil,
-				},
-			},
-			expected: "CONTEXT  NAME    STATUS     AGE\nctx1     pod1    Running    5m\n",
-		},
-		{
-			name: "multiple contexts with header",
-			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "NAME    STATUS    AGE\npod1    Running   5m",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "NAME    STATUS    AGE\npod2    Pending   3m",
-					err:     nil,
-				},
-			},
-			expected: "CONTEXT  NAME    STATUS     AGE\nctx1     pod1    Running    5m\nctx2     pod2    Pending    3m\n",
-		},
-		{
-			name: "contexts with different length names",
-			results: []contextResult{
-				{
-					context: "short",
-					output:  "NAME    STATUS\npod1    Running",
-					err:     nil,
-				},
-				{
-					context: "very-long-context-name",
-					output:  "NAME    STATUS\npod2    Pending",
-					err:     nil,
-				},
-			},
-			expected: "CONTEXT                 NAME    STATUS\nshort                   pod1    Running\nvery-long-context-name  pod2    Pending\n",
-		},
-		{
-			name: "context with error",
-			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "NAME    STATUS\npod1    Running",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "error message",
-					err:     fmt.Errorf("connection failed"),
-				},
-			},
-			expected: "CONTEXT  NAME    STATUS\nctx1     pod1    Running\n",
-		},
-		{
-			name: "context with empty output",
-			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "NAME    STATUS\npod1    Running",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "",
-					err:     nil,
-				},
-			},
-			expected: "CONTEXT  NAME    STATUS\nctx1     pod1    Running\n",
-		},
-		{
-			name: "no header in output",
-			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "pod1    Running",
-					err:     nil,
-				},
-			},
-			expected: "ctx1     pod1    Running\n",
-		},
-		{
-			name: "different column widths across contexts",
-			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "NAME    STATUS    AGE\npod1    Running   5m",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "NAME         STATUS    AGE\nvery-long-pod-name    Pending   3m",
-					err:     nil,
-				},
-			},
-			expected: "CONTEXT  NAME                  STATUS     AGE\nctx1     pod1                  Running    5m\nctx2     very-long-pod-name    Pending    3m\n",
-		},
-	}
+func captureStdout(fn func()) string {
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var stdout bytes.Buffer
-			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
-			os.Stdout = w
-			defer func() {
-				os.Stdout = oldStdout
-				w.Close()
-			}()
+	fn()
 
-			done := make(chan bool)
-			go func() {
-				io.Copy(&stdout, r)
-				done <- true
-			}()
+	w.Close()
+	os.Stdout = oldStdout
 
-			err := formatDefaultOutput(tt.results)
-			w.Close()
-			<-done
-
-			if err != nil {
-				t.Errorf("formatDefaultOutput() error = %v, want nil", err)
-			}
-
-			output := stdout.String()
-			if output != tt.expected {
-				t.Errorf("formatDefaultOutput() output = %q, want %q", output, tt.expected)
-			}
-		})
-	}
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	return buf.String()
 }
 
 func captureOutputCombined(fn func()) string {
@@ -273,18 +145,83 @@ func captureOutputCombined(fn func()) string {
 	return buf.String()
 }
 
+func TestFormatDefaultOutput(t *testing.T) {
+	tests := []struct {
+		name     string
+		results  []contextResult
+		expected string
+	}{
+		{
+			name: "single context with header",
+			results: []contextResult{
+				{context: "ctx1", output: "NAME    STATUS    AGE\npod1    Running   5m"},
+			},
+			expected: "CONTEXT  NAME    STATUS     AGE\nctx1     pod1    Running    5m\n",
+		},
+		{
+			name: "multiple contexts with header",
+			results: []contextResult{
+				{context: "ctx1", output: "NAME    STATUS    AGE\npod1    Running   5m"},
+				{context: "ctx2", output: "NAME    STATUS    AGE\npod2    Pending   3m"},
+			},
+			expected: "CONTEXT  NAME    STATUS     AGE\nctx1     pod1    Running    5m\nctx2     pod2    Pending    3m\n",
+		},
+		{
+			name: "contexts with different length names",
+			results: []contextResult{
+				{context: "short", output: "NAME    STATUS\npod1    Running"},
+				{context: "very-long-context-name", output: "NAME    STATUS\npod2    Pending"},
+			},
+			expected: "CONTEXT                 NAME    STATUS\nshort                   pod1    Running\nvery-long-context-name  pod2    Pending\n",
+		},
+		{
+			name: "context with error",
+			results: []contextResult{
+				{context: "ctx1", output: "NAME    STATUS\npod1    Running"},
+				{context: "ctx2", output: "error message", err: fmt.Errorf("connection failed")},
+			},
+			expected: "CONTEXT  NAME    STATUS\nctx1     pod1    Running\n",
+		},
+		{
+			name: "context with empty output",
+			results: []contextResult{
+				{context: "ctx1", output: "NAME    STATUS\npod1    Running"},
+				{context: "ctx2", output: ""},
+			},
+			expected: "CONTEXT  NAME    STATUS\nctx1     pod1    Running\n",
+		},
+		{
+			name: "no header in output",
+			results: []contextResult{
+				{context: "ctx1", output: "pod1    Running"},
+			},
+			expected: "ctx1     pod1    Running\n",
+		},
+		{
+			name: "different column widths across contexts",
+			results: []contextResult{
+				{context: "ctx1", output: "NAME    STATUS    AGE\npod1    Running   5m"},
+				{context: "ctx2", output: "NAME         STATUS    AGE\nvery-long-pod-name    Pending   3m"},
+			},
+			expected: "CONTEXT  NAME                  STATUS     AGE\nctx1     pod1                  Running    5m\nctx2     very-long-pod-name    Pending    3m\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := captureStdout(func() {
+				err := formatDefaultOutput(tt.results)
+				require.NoError(t, err)
+			})
+			assert.Equal(t, tt.expected, output)
+		})
+	}
+}
+
 func TestFormatDefaultOutputErrorsBeforeOutput(t *testing.T) {
 	results := []contextResult{
-		{
-			context: "ctx1",
-			output:  "NAME    STATUS\npod1    Running",
-			err:     nil,
-		},
-		{
-			context: "ctx2",
-			output:  "error message",
-			err:     fmt.Errorf("connection failed"),
-		},
+		{context: "ctx1", output: "NAME    STATUS\npod1    Running"},
+		{context: "ctx2", output: "error message", err: fmt.Errorf("connection failed")},
 	}
 
 	combined := captureOutputCombined(func() {
@@ -294,15 +231,9 @@ func TestFormatDefaultOutputErrorsBeforeOutput(t *testing.T) {
 	errIdx := strings.Index(combined, "Error:")
 	normalIdx := strings.Index(combined, "pod1")
 
-	if errIdx == -1 {
-		t.Fatal("expected error message in combined output")
-	}
-	if normalIdx == -1 {
-		t.Fatal("expected normal output in combined output")
-	}
-	if errIdx > normalIdx {
-		t.Errorf("error (at index %d) should appear before normal output (at index %d)", errIdx, normalIdx)
-	}
+	require.NotEqual(t, -1, errIdx, "expected error message in combined output")
+	require.NotEqual(t, -1, normalIdx, "expected normal output in combined output")
+	assert.Less(t, errIdx, normalIdx, "error should appear before normal output")
 }
 
 func TestFormatLogsOutput(t *testing.T) {
@@ -314,75 +245,39 @@ func TestFormatLogsOutput(t *testing.T) {
 		{
 			name: "single context with log lines",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "2025-01-01 log line 1\n2025-01-01 log line 2",
-					err:     nil,
-				},
+				{context: "ctx1", output: "2025-01-01 log line 1\n2025-01-01 log line 2"},
 			},
 			expected: "ctx1  2025-01-01 log line 1\nctx1  2025-01-01 log line 2\n",
 		},
 		{
 			name: "multiple contexts with consistent padding",
 			results: []contextResult{
-				{
-					context: "short",
-					output:  "log line from short",
-					err:     nil,
-				},
-				{
-					context: "very-long-context-name",
-					output:  "log line from long",
-					err:     nil,
-				},
+				{context: "short", output: "log line from short"},
+				{context: "very-long-context-name", output: "log line from long"},
 			},
 			expected: "short                   log line from short\nvery-long-context-name  log line from long\n",
 		},
 		{
 			name: "context with error",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "log line 1",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "error output",
-					err:     fmt.Errorf("connection failed"),
-				},
+				{context: "ctx1", output: "log line 1"},
+				{context: "ctx2", output: "error output", err: fmt.Errorf("connection failed")},
 			},
 			expected: "ctx1  log line 1\n",
 		},
 		{
 			name: "context with empty output",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "log line 1",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "",
-					err:     nil,
-				},
+				{context: "ctx1", output: "log line 1"},
+				{context: "ctx2", output: ""},
 			},
 			expected: "ctx1  log line 1\n",
 		},
 		{
 			name: "multiple lines from multiple contexts",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "line1\nline2",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "line3\nline4",
-					err:     nil,
-				},
+				{context: "ctx1", output: "line1\nline2"},
+				{context: "ctx2", output: "line3\nline4"},
 			},
 			expected: "ctx1  line1\nctx1  line2\nctx2  line3\nctx2  line4\n",
 		},
@@ -395,33 +290,11 @@ func TestFormatLogsOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var stdout bytes.Buffer
-			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
-			os.Stdout = w
-			defer func() {
-				os.Stdout = oldStdout
-				w.Close()
-			}()
-
-			done := make(chan bool)
-			go func() {
-				io.Copy(&stdout, r)
-				done <- true
-			}()
-
-			err := formatLogsOutput(tt.results)
-			w.Close()
-			<-done
-
-			if err != nil {
-				t.Errorf("formatLogsOutput() error = %v, want nil", err)
-			}
-
-			output := stdout.String()
-			if output != tt.expected {
-				t.Errorf("formatLogsOutput() output = %q, want %q", output, tt.expected)
-			}
+			output := captureStdout(func() {
+				err := formatLogsOutput(tt.results)
+				require.NoError(t, err)
+			})
+			assert.Equal(t, tt.expected, output)
 		})
 	}
 }
@@ -449,16 +322,8 @@ func TestFormatLogsOutputErrorsToStderr(t *testing.T) {
 	go func() { io.Copy(&stdoutBuf, stdoutR); stdoutDone <- true }()
 
 	results := []contextResult{
-		{
-			context: "good-ctx",
-			output:  "healthy log line",
-			err:     nil,
-		},
-		{
-			context: "bad-ctx",
-			output:  "some error detail",
-			err:     fmt.Errorf("connection refused"),
-		},
+		{context: "good-ctx", output: "healthy log line"},
+		{context: "bad-ctx", output: "some error detail", err: fmt.Errorf("connection refused")},
 	}
 
 	err := formatLogsOutput(results)
@@ -467,39 +332,18 @@ func TestFormatLogsOutputErrorsToStderr(t *testing.T) {
 	<-stdoutDone
 	<-stderrDone
 
-	if err != nil {
-		t.Fatalf("formatLogsOutput() returned error: %v", err)
-	}
+	require.NoError(t, err)
 
-	stdout := stdoutBuf.String()
-	stderr := stderrBuf.String()
-
-	if !strings.Contains(stdout, "healthy log line") {
-		t.Errorf("stdout should contain successful log output, got %q", stdout)
-	}
-	if strings.Contains(stdout, "bad-ctx") {
-		t.Errorf("stdout should not contain error context output, got %q", stdout)
-	}
-	if !strings.Contains(stderr, "bad-ctx") {
-		t.Errorf("stderr should contain the error context name, got %q", stderr)
-	}
-	if !strings.Contains(stderr, "connection refused") {
-		t.Errorf("stderr should contain the error message, got %q", stderr)
-	}
+	assert.Contains(t, stdoutBuf.String(), "healthy log line")
+	assert.NotContains(t, stdoutBuf.String(), "bad-ctx")
+	assert.Contains(t, stderrBuf.String(), "bad-ctx")
+	assert.Contains(t, stderrBuf.String(), "connection refused")
 }
 
 func TestFormatLogsOutputErrorsBeforeOutput(t *testing.T) {
 	results := []contextResult{
-		{
-			context: "ctx1",
-			output:  "log line one\nlog line two",
-			err:     nil,
-		},
-		{
-			context: "ctx2",
-			output:  "error message",
-			err:     fmt.Errorf("connection failed"),
-		},
+		{context: "ctx1", output: "log line one\nlog line two"},
+		{context: "ctx2", output: "error message", err: fmt.Errorf("connection failed")},
 	}
 
 	combined := captureOutputCombined(func() {
@@ -509,29 +353,15 @@ func TestFormatLogsOutputErrorsBeforeOutput(t *testing.T) {
 	errIdx := strings.Index(combined, "Error:")
 	normalIdx := strings.Index(combined, "log line one")
 
-	if errIdx == -1 {
-		t.Fatal("expected error message in combined output")
-	}
-	if normalIdx == -1 {
-		t.Fatal("expected normal output in combined output")
-	}
-	if errIdx > normalIdx {
-		t.Errorf("error (at index %d) should appear before normal output (at index %d)", errIdx, normalIdx)
-	}
+	require.NotEqual(t, -1, errIdx, "expected error message in combined output")
+	require.NotEqual(t, -1, normalIdx, "expected normal output in combined output")
+	assert.Less(t, errIdx, normalIdx, "error should appear before normal output")
 }
 
 func TestFormatVersionOutputErrorsBeforeOutput(t *testing.T) {
 	results := []contextResult{
-		{
-			context: "ctx1",
-			output:  "Client Version: v1.34.3\nServer Version: v1.34.0",
-			err:     nil,
-		},
-		{
-			context: "ctx2",
-			output:  "error message",
-			err:     fmt.Errorf("connection failed"),
-		},
+		{context: "ctx1", output: "Client Version: v1.34.3\nServer Version: v1.34.0"},
+		{context: "ctx2", output: "error message", err: fmt.Errorf("connection failed")},
 	}
 
 	combined := captureOutputCombined(func() {
@@ -541,15 +371,9 @@ func TestFormatVersionOutputErrorsBeforeOutput(t *testing.T) {
 	errIdx := strings.Index(combined, "Error:")
 	tableIdx := strings.Index(combined, "SERVER VERSION")
 
-	if errIdx == -1 {
-		t.Fatal("expected error message in combined output")
-	}
-	if tableIdx == -1 {
-		t.Fatal("expected table header in combined output")
-	}
-	if errIdx > tableIdx {
-		t.Errorf("error (at index %d) should appear before table output (at index %d)", errIdx, tableIdx)
-	}
+	require.NotEqual(t, -1, errIdx, "expected error message in combined output")
+	require.NotEqual(t, -1, tableIdx, "expected table header in combined output")
+	assert.Less(t, errIdx, tableIdx, "error should appear before table output")
 }
 
 func TestFormatVersionOutput(t *testing.T) {
@@ -561,70 +385,38 @@ func TestFormatVersionOutput(t *testing.T) {
 		{
 			name: "single context",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "Client Version: v1.34.3\nKustomize Version: v5.7.1\nServer Version: v1.34.0",
-					err:     nil,
-				},
+				{context: "ctx1", output: "Client Version: v1.34.3\nKustomize Version: v5.7.1\nServer Version: v1.34.0"},
 			},
 			expected: "Client Version: v1.34.3\nKustomize Version: v5.7.1\n\nCONTEXT                         SERVER VERSION\n--------------------------------------------------\nctx1                            v1.34.0\n",
 		},
 		{
 			name: "multiple contexts",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "Client Version: v1.34.3\nServer Version: v1.34.0",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "Client Version: v1.34.3\nServer Version: v1.34.0",
-					err:     nil,
-				},
+				{context: "ctx1", output: "Client Version: v1.34.3\nServer Version: v1.34.0"},
+				{context: "ctx2", output: "Client Version: v1.34.3\nServer Version: v1.34.0"},
 			},
 			expected: "Client Version: v1.34.3\n\nCONTEXT                         SERVER VERSION\n--------------------------------------------------\nctx1                            v1.34.0\nctx2                            v1.34.0\n",
 		},
 		{
 			name: "context with error",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "Client Version: v1.34.3\nServer Version: v1.34.0",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "error message",
-					err:     fmt.Errorf("connection failed"),
-				},
+				{context: "ctx1", output: "Client Version: v1.34.3\nServer Version: v1.34.0"},
+				{context: "ctx2", output: "error message", err: fmt.Errorf("connection failed")},
 			},
 			expected: "Client Version: v1.34.3\n\nCONTEXT                         SERVER VERSION\n--------------------------------------------------\nctx1                            v1.34.0\nctx2                            ERROR\n",
 		},
 		{
 			name: "context with empty output",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "Client Version: v1.34.3\nServer Version: v1.34.0",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "",
-					err:     nil,
-				},
+				{context: "ctx1", output: "Client Version: v1.34.3\nServer Version: v1.34.0"},
+				{context: "ctx2", output: ""},
 			},
 			expected: "Client Version: v1.34.3\n\nCONTEXT                         SERVER VERSION\n--------------------------------------------------\nctx1                            v1.34.0\nctx2                            N/A\n",
 		},
 		{
 			name: "output with empty lines",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "Client Version: v1.34.3\n\nServer Version: v1.34.0",
-					err:     nil,
-				},
+				{context: "ctx1", output: "Client Version: v1.34.3\n\nServer Version: v1.34.0"},
 			},
 			expected: "Client Version: v1.34.3\n\nCONTEXT                         SERVER VERSION\n--------------------------------------------------\nctx1                            v1.34.0\n",
 		},
@@ -632,33 +424,11 @@ func TestFormatVersionOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var stdout bytes.Buffer
-			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
-			os.Stdout = w
-			defer func() {
-				os.Stdout = oldStdout
-				w.Close()
-			}()
-
-			done := make(chan bool)
-			go func() {
-				io.Copy(&stdout, r)
-				done <- true
-			}()
-
-			err := formatVersionOutput(tt.results)
-			w.Close()
-			<-done
-
-			if err != nil {
-				t.Errorf("formatVersionOutput() error = %v, want nil", err)
-			}
-
-			output := stdout.String()
-			if output != tt.expected {
-				t.Errorf("formatVersionOutput() output = %q, want %q", output, tt.expected)
-			}
+			output := captureStdout(func() {
+				err := formatVersionOutput(tt.results)
+				require.NoError(t, err)
+			})
+			assert.Equal(t, tt.expected, output)
 		})
 	}
 }
@@ -672,11 +442,7 @@ func TestFormatJSONOutput(t *testing.T) {
 		{
 			name: "single context with items array",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  `{"items":[{"metadata":{"name":"pod1"}}]}`,
-					err:     nil,
-				},
+				{context: "ctx1", output: `{"items":[{"metadata":{"name":"pod1"}}]}`},
 			},
 			expected: `{
   "apiVersion": "v1",
@@ -689,22 +455,13 @@ func TestFormatJSONOutput(t *testing.T) {
     }
   ],
   "kind": "List"
-}
-`,
+}`,
 		},
 		{
 			name: "multiple contexts with items",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  `{"items":[{"metadata":{"name":"pod1"}}]}`,
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  `{"items":[{"metadata":{"name":"pod2"}}]}`,
-					err:     nil,
-				},
+				{context: "ctx1", output: `{"items":[{"metadata":{"name":"pod1"}}]}`},
+				{context: "ctx2", output: `{"items":[{"metadata":{"name":"pod2"}}]}`},
 			},
 			expected: `{
   "apiVersion": "v1",
@@ -723,17 +480,12 @@ func TestFormatJSONOutput(t *testing.T) {
     }
   ],
   "kind": "List"
-}
-`,
+}`,
 		},
 		{
 			name: "single object without items",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  `{"metadata":{"name":"pod1"}}`,
-					err:     nil,
-				},
+				{context: "ctx1", output: `{"metadata":{"name":"pod1"}}`},
 			},
 			expected: `{
   "apiVersion": "v1",
@@ -746,17 +498,12 @@ func TestFormatJSONOutput(t *testing.T) {
     }
   ],
   "kind": "List"
-}
-`,
+}`,
 		},
 		{
 			name: "object without metadata",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  `{"name":"pod1"}`,
-					err:     nil,
-				},
+				{context: "ctx1", output: `{"name":"pod1"}`},
 			},
 			expected: `{
   "apiVersion": "v1",
@@ -767,22 +514,13 @@ func TestFormatJSONOutput(t *testing.T) {
     }
   ],
   "kind": "List"
-}
-`,
+}`,
 		},
 		{
 			name: "context with error",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  `{"items":[{"metadata":{"name":"pod1"}}]}`,
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  `{"error":"connection failed"}`,
-					err:     fmt.Errorf("connection failed"),
-				},
+				{context: "ctx1", output: `{"items":[{"metadata":{"name":"pod1"}}]}`},
+				{context: "ctx2", output: `{"error":"connection failed"}`, err: fmt.Errorf("connection failed")},
 			},
 			expected: `{
   "apiVersion": "v1",
@@ -799,42 +537,17 @@ func TestFormatJSONOutput(t *testing.T) {
     }
   ],
   "kind": "List"
-}
-`,
+}`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var stdout bytes.Buffer
-			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
-			os.Stdout = w
-			defer func() {
-				os.Stdout = oldStdout
-				w.Close()
-			}()
-
-			done := make(chan bool)
-			go func() {
-				io.Copy(&stdout, r)
-				done <- true
-			}()
-
-			err := formatJSONOutput(tt.results, "get")
-			w.Close()
-			<-done
-
-			if err != nil {
-				t.Errorf("formatJSONOutput() error = %v, want nil", err)
-			}
-
-			output := stdout.String()
-			output = strings.TrimSpace(output)
-			expected := strings.TrimSpace(tt.expected)
-			if output != expected {
-				t.Errorf("formatJSONOutput() output = %q, want %q", output, expected)
-			}
+			output := captureStdout(func() {
+				err := formatJSONOutput(tt.results, "get")
+				require.NoError(t, err)
+			})
+			assert.Equal(t, strings.TrimSpace(tt.expected), strings.TrimSpace(output))
 		})
 	}
 }
@@ -848,87 +561,41 @@ func TestFormatYAMLOutput(t *testing.T) {
 		{
 			name: "single context with items array",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  `{"items":[{"metadata":{"name":"pod1"}}]}`,
-					err:     nil,
-				},
+				{context: "ctx1", output: `{"items":[{"metadata":{"name":"pod1"}}]}`},
 			},
 			checkFn: func(t *testing.T, output string) {
-				if !strings.Contains(output, "context: ctx1") {
-					t.Errorf("formatYAMLOutput() should contain 'context: ctx1'")
-				}
-				if !strings.Contains(output, "name: pod1") {
-					t.Errorf("formatYAMLOutput() should contain 'name: pod1'")
-				}
+				assert.Contains(t, output, "context: ctx1")
+				assert.Contains(t, output, "name: pod1")
 			},
 		},
 		{
 			name: "multiple contexts",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  `{"items":[{"metadata":{"name":"pod1"}}]}`,
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  `{"items":[{"metadata":{"name":"pod2"}}]}`,
-					err:     nil,
-				},
+				{context: "ctx1", output: `{"items":[{"metadata":{"name":"pod1"}}]}`},
+				{context: "ctx2", output: `{"items":[{"metadata":{"name":"pod2"}}]}`},
 			},
 			checkFn: func(t *testing.T, output string) {
-				if !strings.Contains(output, "context: ctx1") {
-					t.Errorf("formatYAMLOutput() should contain 'context: ctx1'")
-				}
-				if !strings.Contains(output, "context: ctx2") {
-					t.Errorf("formatYAMLOutput() should contain 'context: ctx2'")
-				}
+				assert.Contains(t, output, "context: ctx1")
+				assert.Contains(t, output, "context: ctx2")
 			},
 		},
 		{
 			name: "object without metadata",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  `{"name":"pod1"}`,
-					err:     nil,
-				},
+				{context: "ctx1", output: `{"name":"pod1"}`},
 			},
 			checkFn: func(t *testing.T, output string) {
-				if !strings.Contains(output, "context: ctx1") {
-					t.Errorf("formatYAMLOutput() should contain 'context: ctx1'")
-				}
+				assert.Contains(t, output, "context: ctx1")
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var stdout bytes.Buffer
-			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
-			os.Stdout = w
-			defer func() {
-				os.Stdout = oldStdout
-				w.Close()
-			}()
-
-			done := make(chan bool)
-			go func() {
-				io.Copy(&stdout, r)
-				done <- true
-			}()
-
-			err := formatYAMLOutput(tt.results, "get")
-			w.Close()
-			<-done
-
-			if err != nil {
-				t.Errorf("formatYAMLOutput() error = %v, want nil", err)
-			}
-
-			output := stdout.String()
+			output := captureStdout(func() {
+				err := formatYAMLOutput(tt.results, "get")
+				require.NoError(t, err)
+			})
 			tt.checkFn(t, output)
 		})
 	}
@@ -947,19 +614,11 @@ func TestFormatOutput(t *testing.T) {
 			format:     formatDefault,
 			subcommand: "get",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "NAME    STATUS\npod1    Running",
-					err:     nil,
-				},
+				{context: "ctx1", output: "NAME    STATUS\npod1    Running"},
 			},
 			checkFn: func(t *testing.T, output string) {
-				if !strings.Contains(output, "ctx1") {
-					t.Errorf("formatOutput() should contain context name")
-				}
-				if !strings.Contains(output, "pod1") {
-					t.Errorf("formatOutput() should contain pod name")
-				}
+				assert.Contains(t, output, "ctx1")
+				assert.Contains(t, output, "pod1")
 			},
 		},
 		{
@@ -967,22 +626,12 @@ func TestFormatOutput(t *testing.T) {
 			format:     formatDefault,
 			subcommand: "version",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "Client Version: v1.34.3\nServer Version: v1.34.0",
-					err:     nil,
-				},
+				{context: "ctx1", output: "Client Version: v1.34.3\nServer Version: v1.34.0"},
 			},
 			checkFn: func(t *testing.T, output string) {
-				if !strings.Contains(output, "CONTEXT") {
-					t.Errorf("formatOutput() should use tabular format with CONTEXT header")
-				}
-				if !strings.Contains(output, "SERVER VERSION") {
-					t.Errorf("formatOutput() should use tabular format with SERVER VERSION header")
-				}
-				if !strings.Contains(output, "Client Version") {
-					t.Errorf("formatOutput() should contain client version info")
-				}
+				assert.Contains(t, output, "CONTEXT")
+				assert.Contains(t, output, "SERVER VERSION")
+				assert.Contains(t, output, "Client Version")
 			},
 		},
 		{
@@ -990,19 +639,11 @@ func TestFormatOutput(t *testing.T) {
 			format:     formatJSON,
 			subcommand: "get",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  `{"items":[{"metadata":{"name":"pod1"}}]}`,
-					err:     nil,
-				},
+				{context: "ctx1", output: `{"items":[{"metadata":{"name":"pod1"}}]}`},
 			},
 			checkFn: func(t *testing.T, output string) {
-				if !strings.Contains(output, `"context": "ctx1"`) {
-					t.Errorf("formatOutput() should contain context in JSON")
-				}
-				if !strings.Contains(output, `"kind": "List"`) {
-					t.Errorf("formatOutput() should contain List kind")
-				}
+				assert.Contains(t, output, `"context": "ctx1"`)
+				assert.Contains(t, output, `"kind": "List"`)
 			},
 		},
 		{
@@ -1010,19 +651,11 @@ func TestFormatOutput(t *testing.T) {
 			format:     formatYAML,
 			subcommand: "get",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  `{"items":[{"metadata":{"name":"pod1"}}]}`,
-					err:     nil,
-				},
+				{context: "ctx1", output: `{"items":[{"metadata":{"name":"pod1"}}]}`},
 			},
 			checkFn: func(t *testing.T, output string) {
-				if !strings.Contains(output, "context: ctx1") {
-					t.Errorf("formatOutput() should contain context in YAML")
-				}
-				if !strings.Contains(output, "kind: List") {
-					t.Errorf("formatOutput() should contain List kind")
-				}
+				assert.Contains(t, output, "context: ctx1")
+				assert.Contains(t, output, "kind: List")
 			},
 		},
 		{
@@ -1030,29 +663,16 @@ func TestFormatOutput(t *testing.T) {
 			format:     formatDefault,
 			subcommand: "logs",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "2025-01-01T00:00:00Z first log line\n2025-01-01T00:00:01Z second log line",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "2025-01-01T00:00:00Z another log line",
-					err:     nil,
-				},
+				{context: "ctx1", output: "2025-01-01T00:00:00Z first log line\n2025-01-01T00:00:01Z second log line"},
+				{context: "ctx2", output: "2025-01-01T00:00:00Z another log line"},
 			},
 			checkFn: func(t *testing.T, output string) {
-				if strings.Contains(output, "CONTEXT") {
-					t.Errorf("formatOutput() for logs should not contain a CONTEXT header row")
-				}
+				assert.NotContains(t, output, "CONTEXT")
 				lines := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
-				if len(lines) != 3 {
-					t.Errorf("formatOutput() for logs should produce 3 lines, got %d", len(lines))
-				}
+				assert.Len(t, lines, 3)
 				for _, line := range lines {
-					if !strings.HasPrefix(line, "ctx1") && !strings.HasPrefix(line, "ctx2") {
-						t.Errorf("each line should be prefixed with a context name, got %q", line)
-					}
+					assert.True(t, strings.HasPrefix(line, "ctx1") || strings.HasPrefix(line, "ctx2"),
+						"each line should be prefixed with a context name, got %q", line)
 				}
 			},
 		},
@@ -1061,22 +681,11 @@ func TestFormatOutput(t *testing.T) {
 			format:     formatDefault,
 			subcommand: "api-versions",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "apps/v1\nv1",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "apps/v1\nv1",
-					err:     nil,
-				},
+				{context: "ctx1", output: "apps/v1\nv1"},
+				{context: "ctx2", output: "apps/v1\nv1"},
 			},
 			checkFn: func(t *testing.T, output string) {
-				expected := "ctx1  apps/v1\nctx1  v1\nctx2  apps/v1\nctx2  v1\n"
-				if output != expected {
-					t.Errorf("formatOutput() output = %q, want %q", output, expected)
-				}
+				assert.Equal(t, "ctx1  apps/v1\nctx1  v1\nctx2  apps/v1\nctx2  v1\n", output)
 			},
 		},
 		{
@@ -1084,22 +693,11 @@ func TestFormatOutput(t *testing.T) {
 			format:     formatDefault,
 			subcommand: "api-versions",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "apps/v1\nv1",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "error: connection refused",
-					err:     fmt.Errorf("connection refused"),
-				},
+				{context: "ctx1", output: "apps/v1\nv1"},
+				{context: "ctx2", output: "error: connection refused", err: fmt.Errorf("connection refused")},
 			},
 			checkFn: func(t *testing.T, output string) {
-				expected := "ctx1  apps/v1\nctx1  v1\n"
-				if output != expected {
-					t.Errorf("formatOutput() output = %q, want %q", output, expected)
-				}
+				assert.Equal(t, "ctx1  apps/v1\nctx1  v1\n", output)
 			},
 		},
 		{
@@ -1107,66 +705,26 @@ func TestFormatOutput(t *testing.T) {
 			format:     formatDefault,
 			subcommand: "api-resources",
 			results: []contextResult{
-				{
-					context: "ctx1",
-					output:  "NAME          SHORTNAMES   APIVERSION   NAMESPACED   KIND\nbindings                   v1           true         Binding\npods          po           v1           true         Pod",
-					err:     nil,
-				},
-				{
-					context: "ctx2",
-					output:  "NAME          SHORTNAMES   APIVERSION   NAMESPACED   KIND\nbindings                   v1           true         Binding\npods          po           v1           true         Pod",
-					err:     nil,
-				},
+				{context: "ctx1", output: "NAME          SHORTNAMES   APIVERSION   NAMESPACED   KIND\nbindings                   v1           true         Binding\npods          po           v1           true         Pod"},
+				{context: "ctx2", output: "NAME          SHORTNAMES   APIVERSION   NAMESPACED   KIND\nbindings                   v1           true         Binding\npods          po           v1           true         Pod"},
 			},
 			checkFn: func(t *testing.T, output string) {
-				if !strings.Contains(output, "CONTEXT") {
-					t.Error("expected CONTEXT column in header")
-				}
-				if !strings.Contains(output, "SHORTNAMES") {
-					t.Error("expected SHORTNAMES column in header")
-				}
-				if strings.Count(output, "SHORTNAMES") != 1 {
-					t.Errorf("expected header to appear exactly once, got %d times", strings.Count(output, "SHORTNAMES"))
-				}
-				if !strings.Contains(output, "ctx1") {
-					t.Error("expected ctx1 in output")
-				}
-				if !strings.Contains(output, "ctx2") {
-					t.Error("expected ctx2 in output")
-				}
-				if !strings.Contains(output, "pods") {
-					t.Error("expected pods in output")
-				}
+				assert.Contains(t, output, "CONTEXT")
+				assert.Contains(t, output, "SHORTNAMES")
+				assert.Equal(t, 1, strings.Count(output, "SHORTNAMES"), "header should appear exactly once")
+				assert.Contains(t, output, "ctx1")
+				assert.Contains(t, output, "ctx2")
+				assert.Contains(t, output, "pods")
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var stdout bytes.Buffer
-			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
-			os.Stdout = w
-			defer func() {
-				os.Stdout = oldStdout
-				w.Close()
-			}()
-
-			done := make(chan bool)
-			go func() {
-				io.Copy(&stdout, r)
-				done <- true
-			}()
-
-			err := formatOutput(tt.results, tt.format, tt.subcommand)
-			w.Close()
-			<-done
-
-			if err != nil {
-				t.Errorf("formatOutput() error = %v, want nil", err)
-			}
-
-			output := stdout.String()
+			output := captureStdout(func() {
+				err := formatOutput(tt.results, tt.format, tt.subcommand)
+				require.NoError(t, err)
+			})
 			tt.checkFn(t, output)
 		})
 	}
