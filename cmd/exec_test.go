@@ -235,44 +235,44 @@ func TestRenderProgressBar(t *testing.T) {
 		completed int
 		total     int
 		wantText  string
-		wantGreen bool
-		wantAmber bool
-		wantGray  bool
+		wantBrightBlue bool
+		wantDarkBlue   bool
+		wantGray       bool
 	}{
 		{
-			name:      "all pending",
-			started:   0,
+			name:     "all pending",
+			started:  0,
 			completed: 0,
-			total:     10,
-			wantText:  "0/10 complete",
-			wantGray:  true,
+			total:    10,
+			wantText: "0/10 complete",
+			wantGray: true,
 		},
 		{
-			name:      "some started none completed",
-			started:   3,
-			completed: 0,
-			total:     10,
-			wantText:  "0/10 complete",
-			wantAmber: true,
-			wantGray:  true,
+			name:         "some started none completed",
+			started:      3,
+			completed:    0,
+			total:        10,
+			wantText:     "0/10 complete",
+			wantDarkBlue: true,
+			wantGray:     true,
 		},
 		{
-			name:      "some completed some in progress",
-			started:   6,
-			completed: 3,
-			total:     10,
-			wantText:  "3/10 complete",
-			wantGreen: true,
-			wantAmber: true,
-			wantGray:  true,
+			name:           "some completed some in progress",
+			started:        6,
+			completed:      3,
+			total:          10,
+			wantText:       "3/10 complete",
+			wantBrightBlue: true,
+			wantDarkBlue:   true,
+			wantGray:       true,
 		},
 		{
-			name:      "all completed",
-			started:   10,
-			completed: 10,
-			total:     10,
-			wantText:  "10/10 complete",
-			wantGreen: true,
+			name:           "all completed",
+			started:        10,
+			completed:      10,
+			total:          10,
+			wantText:       "10/10 complete",
+			wantBrightBlue: true,
 		},
 		{
 			name:     "zero total",
@@ -291,11 +291,11 @@ func TestRenderProgressBar(t *testing.T) {
 				return
 			}
 			assert.Contains(t, result, tt.wantText)
-			if tt.wantGreen {
-				assert.Contains(t, result, colorGreen)
+			if tt.wantBrightBlue {
+				assert.Contains(t, result, "\033[94m")
 			}
-			if tt.wantAmber {
-				assert.Contains(t, result, colorYellow)
+			if tt.wantDarkBlue {
+				assert.Contains(t, result, colorBlue)
 			}
 			if tt.wantGray {
 				assert.Contains(t, result, "░")

@@ -38,9 +38,9 @@ func renderProgressBar(started, completed, total int) string {
 	pendingWidth := progressBarWidth - completedWidth - inProgressWidth
 
 	var bar strings.Builder
-	bar.WriteString(colorGreen)
+	bar.WriteString("\033[94m") // bright blue for completed
 	bar.WriteString(strings.Repeat("█", completedWidth))
-	bar.WriteString(colorYellow)
+	bar.WriteString(colorBlue) // dark blue for in-progress
 	bar.WriteString(strings.Repeat("█", inProgressWidth))
 	bar.WriteString(colorGray)
 	bar.WriteString(strings.Repeat("░", pendingWidth))
