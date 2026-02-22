@@ -77,36 +77,33 @@ kubectl x --batch-size 10 get pods
 kubectl x -b 50 get pods
 ```
 
-### Filtering Contexts
+### Including Contexts
 
-Filter which contexts to run commands against using the `--filter` (or `--include`) flag with regex patterns (case-insensitive). You can specify multiple flags to match contexts that match any of the patterns (OR logic):
+Filter which contexts to run commands against using the `--include` flag with regex patterns (case-insensitive). You can specify multiple `--include` flags to match contexts that match any of the patterns (OR logic):
 
 ```bash
 # Match contexts containing "prod"
-kubectl x --filter prod get pods
-
-# --include is an alias for --filter
 kubectl x --include prod get pods
 
 # Match contexts starting with "dev"
-kubectl x --filter "^dev" version
+kubectl x --include "^dev" version
 
 # Match contexts containing "dev" OR "prod"
-kubectl x --filter dev --filter prod get pods
+kubectl x --include dev --include prod get pods
 
 # Match contexts ending with "-prod" or "-staging"
-kubectl x --filter "-prod$" --filter "-staging$" get pods
+kubectl x --include "-prod$" --include "-staging$" get pods
 
 # Match contexts with "prod" or "production" (using regex alternation)
-kubectl x --filter "prod(uction)?" get pods
+kubectl x --include "prod(uction)?" get pods
 
 # Combine with batch size
-kubectl x --filter staging --batch-size 10 get pods
+kubectl x --include staging --batch-size 10 get pods
 ```
 
 ### Excluding Contexts
 
-Exclude contexts using the `--exclude` flag with regex patterns (case-insensitive). Multiple `--exclude` flags are OR'd together. When both `--filter`/`--include` and `--exclude` are used, include filters are applied first, then exclude filters remove from that set:
+Exclude contexts using the `--exclude` flag with regex patterns (case-insensitive). Multiple `--exclude` flags are OR'd together. When both `--include` and `--exclude` are used, include filters are applied first, then exclude filters remove from that set:
 
 ```bash
 # Exclude contexts containing "dev"
@@ -116,7 +113,7 @@ kubectl x --exclude dev get pods
 kubectl x --exclude dev --exclude staging get pods
 
 # Include "prod" contexts but exclude US West
-kubectl x --filter prod --exclude "us-west" get pods
+kubectl x --include prod --exclude "us-west" get pods
 ```
 
 ### Version Command
