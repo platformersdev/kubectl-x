@@ -271,11 +271,11 @@ func TestRenderProgressBar(t *testing.T) {
 			wantWhite: true,
 		},
 		{
-			name:     "zero total",
-			started:  0,
+			name:      "zero total",
+			started:   0,
 			completed: 0,
-			total:    0,
-			wantText: "",
+			total:     0,
+			wantText:  "",
 		},
 		{
 			name:      "fractional values mid-animation",
