@@ -34,9 +34,32 @@ The authors of this project do not intend to support write operations (`apply`, 
 
 ## Installation
 
+### Download a release
+
+Download the latest binary for your platform from the [releases page](https://github.com/platformersdev/kubectl-x/releases/latest), then place it in your `$PATH`:
+
 ```bash
+# Example for macOS (Apple Silicon)
+curl -L https://github.com/platformersdev/kubectl-x/releases/latest/download/kubectl-x-darwin-arm64 -o kubectl-x
+chmod +x kubectl-x
+sudo mv kubectl-x /usr/local/bin/
+```
+
+### Install with Go
+
+```bash
+go install github.com/platformersdev/kubectl-x@latest
+```
+
+### Build from source
+
+```bash
+git clone https://github.com/platformersdev/kubectl-x.git
+cd kubectl-x
 go build .
 ```
+
+kubectl discovers plugins by looking for executables named `kubectl-<plugin>` on your `$PATH`. As long as `kubectl-x` is in your `$PATH`, you can invoke it as `kubectl x`.
 
 
 ## Usage
@@ -238,5 +261,5 @@ When using `-o json` or `-o yaml`, the tool concatenates all items from all cont
 
 - kubectl installed and configured
 - Valid kubeconfig file (default: `~/.kube/config` or `$KUBECONFIG`)
-- Go 1.21 or later to build
+- Go 1.25 or later to build
 
