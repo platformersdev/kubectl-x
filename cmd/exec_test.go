@@ -235,36 +235,33 @@ func TestRenderProgressBar(t *testing.T) {
 		completed int
 		total     int
 		wantText  string
-		wantWhite    bool
-		wantDarkGray bool
-		wantGray     bool
+		wantWhite bool
+		wantGray  bool
 	}{
 		{
-			name:     "all pending",
-			started:  0,
+			name:      "all pending",
+			started:   0,
 			completed: 0,
-			total:    10,
-			wantText: "0/10 complete",
-			wantGray: true,
+			total:     10,
+			wantText:  "0/10 complete",
+			wantGray:  true,
 		},
 		{
-			name:         "some started none completed",
-			started:      3,
-			completed:    0,
-			total:        10,
-			wantText:     "0/10 complete",
-			wantDarkGray: true,
-			wantGray:     true,
+			name:      "some started none completed",
+			started:   3,
+			completed: 0,
+			total:     10,
+			wantText:  "0/10 complete",
+			wantGray:  true,
 		},
 		{
-			name:         "some completed some in progress",
-			started:      6,
-			completed:    3,
-			total:        10,
-			wantText:     "3/10 complete",
-			wantWhite:    true,
-			wantDarkGray: true,
-			wantGray:     true,
+			name:      "some completed some in progress",
+			started:   6,
+			completed: 3,
+			total:     10,
+			wantText:  "3/10 complete",
+			wantWhite: true,
+			wantGray:  true,
 		},
 		{
 			name:      "all completed",
@@ -294,14 +291,29 @@ func TestRenderProgressBar(t *testing.T) {
 			if tt.wantWhite {
 				assert.Contains(t, result, colorWhite)
 			}
-			if tt.wantDarkGray {
-				assert.Contains(t, result, colorGray+"█")
-			}
 			if tt.wantGray {
-				assert.Contains(t, result, "░")
+				assert.Contains(t, result, colorGray)
 			}
 		})
 	}
+}
+
+func TestRenderProgressBarWidth(t *testing.T) {
+	result := renderProgressBar(30, 30, 30)
+	assert.Equal(t, strings.Count(result, "█"), progressBarWidth, "fully completed bar should have exactly progressBarWidth full blocks")
+	assert.NotContains(t, result, "░")
+}
+
+func TestRenderProgressBarPartialBlocks(t *testing.T) {
+	result := renderProgressBar(1, 0, 100)
+	hasPartial := false
+	for _, p := range partialBlocks[1:] {
+		if strings.Contains(result, p) {
+			hasPartial = true
+			break
+		}
+	}
+	assert.True(t, hasPartial, "small progress should produce a partial block character")
 }
 
 func TestShowProgress(t *testing.T) {

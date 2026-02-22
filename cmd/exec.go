@@ -27,23 +27,35 @@ func stderrIsTerminal() bool {
 
 const progressBarWidth = 30
 
+var partialBlocks = []string{" ", "▏", "▎", "▍", "▌", "▋", "▊", "▉"}
+
 func renderProgressBar(started, completed, total int) string {
 	if total == 0 {
 		return ""
 	}
 
-	completedWidth := (completed * progressBarWidth) / total
-	startedWidth := (started * progressBarWidth) / total
-	inProgressWidth := startedWidth - completedWidth
-	pendingWidth := progressBarWidth - completedWidth - inProgressWidth
+	// Position each edge in eighths of a cell for sub-cell granularity
+	cEighths := completed * progressBarWidth * 8 / total
+	sEighths := started * progressBarWidth * 8 / total
 
 	var bar strings.Builder
-	bar.WriteString(colorWhite) // bright white for completed
-	bar.WriteString(strings.Repeat("█", completedWidth))
-	bar.WriteString(colorGray) // dark gray for in-progress
-	bar.WriteString(strings.Repeat("█", inProgressWidth))
-	bar.WriteString(colorGray)
-	bar.WriteString(strings.Repeat("░", pendingWidth))
+	for i := 0; i < progressBarWidth; i++ {
+		left := i * 8
+		right := (i + 1) * 8
+
+		switch {
+		case right <= cEighths:
+			bar.WriteString(colorWhite + "█")
+		case left >= sEighths:
+			bar.WriteString(colorGray + "░")
+		case left >= cEighths && right <= sEighths:
+			bar.WriteString(colorGray + "█")
+		case left < cEighths:
+			bar.WriteString(colorWhite + partialBlocks[cEighths-left])
+		default:
+			bar.WriteString(colorGray + partialBlocks[sEighths-left])
+		}
+	}
 	bar.WriteString(colorReset)
 
 	return fmt.Sprintf("\r\033[K %s %d/%d complete", bar.String(), completed, total)
