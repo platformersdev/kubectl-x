@@ -4,6 +4,9 @@
 - Update the README.
 - Add unit tests.
   - Unit tests should only test code in this repository; library code does not need direct tests.
+  - Keep unit tests concise and focused: each test file should only test functions defined in the corresponding source file (e.g., `output_test.go` tests functions from `output.go`).
+  - Avoid duplicating tests across files. If a function is already tested in its own test file, don't re-test it elsewhere with different input data.
+  - Use mocks where appropriate to isolate the unit under test.
 
 ## Workflow
 
