@@ -68,6 +68,17 @@ func getContexts() ([]string, error) {
 		}
 	}
 
+	if len(excludePatterns) > 0 {
+		var err error
+		contexts, err = excludeContexts(contexts, excludePatterns)
+		if err != nil {
+			return nil, fmt.Errorf("invalid exclude pattern: %w", err)
+		}
+		if len(contexts) == 0 {
+			return nil, fmt.Errorf("all contexts excluded by patterns: %s", strings.Join(excludePatterns, ", "))
+		}
+	}
+
 	return contexts, nil
 }
 
@@ -93,6 +104,37 @@ func filterContexts(contexts []string, patterns []string) ([]string, error) {
 				filtered = append(filtered, ctx)
 				break // Match found, no need to check other patterns for this context
 			}
+		}
+	}
+	return filtered, nil
+}
+
+// Multiple patterns are OR'd together - a context is excluded if it matches any pattern.
+func excludeContexts(contexts []string, patterns []string) ([]string, error) {
+	if len(patterns) == 0 {
+		return contexts, nil
+	}
+
+	regexes := make([]*regexp.Regexp, 0, len(patterns))
+	for _, pattern := range patterns {
+		regex, err := regexp.Compile("(?i)" + pattern)
+		if err != nil {
+			return nil, fmt.Errorf("invalid regex pattern %q: %w", pattern, err)
+		}
+		regexes = append(regexes, regex)
+	}
+
+	var filtered []string
+	for _, ctx := range contexts {
+		excluded := false
+		for _, regex := range regexes {
+			if regex.MatchString(ctx) {
+				excluded = true
+				break
+			}
+		}
+		if !excluded {
+			filtered = append(filtered, ctx)
 		}
 	}
 	return filtered, nil

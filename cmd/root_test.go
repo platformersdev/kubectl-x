@@ -32,4 +32,10 @@ func TestRootCmdFlags(t *testing.T) {
 
 	filterFlag := rootCmd.PersistentFlags().Lookup("filter")
 	require.NotNil(t, filterFlag)
+
+	includeFlag := rootCmd.PersistentFlags().Lookup("include")
+	require.NotNil(t, includeFlag)
+
+	excludeFlag := rootCmd.PersistentFlags().Lookup("exclude")
+	require.NotNil(t, excludeFlag)
 }

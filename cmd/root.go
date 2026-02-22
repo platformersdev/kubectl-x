@@ -6,6 +6,7 @@ import (
 
 var batchSize int = 25
 var filterPatterns []string
+var excludePatterns []string
 
 var rootCmd = &cobra.Command{
 	Use:              "kubectl x",
@@ -21,6 +22,8 @@ func Execute() error {
 func init() {
 	rootCmd.PersistentFlags().IntVarP(&batchSize, "batch-size", "b", 25, "Number of contexts to process in parallel")
 	rootCmd.PersistentFlags().StringArrayVar(&filterPatterns, "filter", []string{}, "Filter contexts by name using regex pattern (can be specified multiple times for OR logic)")
+	rootCmd.PersistentFlags().StringArrayVar(&filterPatterns, "include", []string{}, "Alias for --filter")
+	rootCmd.PersistentFlags().StringArrayVar(&excludePatterns, "exclude", []string{}, "Exclude contexts by name using regex pattern (can be specified multiple times for OR logic)")
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(getCmd)
 	rootCmd.AddCommand(logsCmd)
