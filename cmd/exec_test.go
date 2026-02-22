@@ -235,9 +235,9 @@ func TestRenderProgressBar(t *testing.T) {
 		completed int
 		total     int
 		wantText  string
-		wantBrightBlue bool
-		wantDarkBlue   bool
-		wantGray       bool
+		wantWhite    bool
+		wantDarkGray bool
+		wantGray     bool
 	}{
 		{
 			name:     "all pending",
@@ -253,26 +253,26 @@ func TestRenderProgressBar(t *testing.T) {
 			completed:    0,
 			total:        10,
 			wantText:     "0/10 complete",
-			wantDarkBlue: true,
+			wantDarkGray: true,
 			wantGray:     true,
 		},
 		{
-			name:           "some completed some in progress",
-			started:        6,
-			completed:      3,
-			total:          10,
-			wantText:       "3/10 complete",
-			wantBrightBlue: true,
-			wantDarkBlue:   true,
-			wantGray:       true,
+			name:         "some completed some in progress",
+			started:      6,
+			completed:    3,
+			total:        10,
+			wantText:     "3/10 complete",
+			wantWhite:    true,
+			wantDarkGray: true,
+			wantGray:     true,
 		},
 		{
-			name:           "all completed",
-			started:        10,
-			completed:      10,
-			total:          10,
-			wantText:       "10/10 complete",
-			wantBrightBlue: true,
+			name:      "all completed",
+			started:   10,
+			completed: 10,
+			total:     10,
+			wantText:  "10/10 complete",
+			wantWhite: true,
 		},
 		{
 			name:     "zero total",
@@ -291,11 +291,11 @@ func TestRenderProgressBar(t *testing.T) {
 				return
 			}
 			assert.Contains(t, result, tt.wantText)
-			if tt.wantBrightBlue {
-				assert.Contains(t, result, "\033[94m")
+			if tt.wantWhite {
+				assert.Contains(t, result, colorWhite)
 			}
-			if tt.wantDarkBlue {
-				assert.Contains(t, result, colorBlue)
+			if tt.wantDarkGray {
+				assert.Contains(t, result, colorGray+"█")
 			}
 			if tt.wantGray {
 				assert.Contains(t, result, "░")
