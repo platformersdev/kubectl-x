@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -11,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"golang.org/x/term"
 )
@@ -29,14 +31,24 @@ const progressBarWidth = 30
 
 var partialBlocks = []string{" ", "▏", "▎", "▍", "▌", "▋", "▊", "▉"}
 
-func renderProgressBar(started, completed, total int) string {
+const lerpFactor = 0.15
+const lerpSnap = 0.05
+
+func lerp(display, target float64) float64 {
+	display += (target - display) * lerpFactor
+	if math.Abs(target-display) < lerpSnap {
+		return target
+	}
+	return display
+}
+
+func renderProgressBar(displayStarted, displayCompleted float64, total int) string {
 	if total == 0 {
 		return ""
 	}
 
-	// Position each edge in eighths of a cell for sub-cell granularity
-	cEighths := completed * progressBarWidth * 8 / total
-	sEighths := started * progressBarWidth * 8 / total
+	cEighths := int(displayCompleted * float64(progressBarWidth) * 8 / float64(total))
+	sEighths := int(displayStarted * float64(progressBarWidth) * 8 / float64(total))
 
 	var bar strings.Builder
 	for i := 0; i < progressBarWidth; i++ {
@@ -58,15 +70,59 @@ func renderProgressBar(started, completed, total int) string {
 	}
 	bar.WriteString(colorReset)
 
-	return fmt.Sprintf("\r\033[K %s %d/%d complete", bar.String(), completed, total)
-}
-
-func showProgress(started, completed *atomic.Int32, total int) {
-	fmt.Fprint(os.Stderr, renderProgressBar(int(started.Load()), int(completed.Load()), total))
+	return fmt.Sprintf("\r\033[K %s %d/%d complete", bar.String(), int(displayCompleted), total)
 }
 
 func clearProgress() {
 	fmt.Fprintf(os.Stderr, "\r\033[K")
+}
+
+type progressBar struct {
+	started   atomic.Int32
+	completed atomic.Int32
+	total     int
+	stop      chan struct{}
+	done      chan struct{}
+}
+
+func newProgressBar(total int) *progressBar {
+	p := &progressBar{
+		total: total,
+		stop:  make(chan struct{}),
+		done:  make(chan struct{}),
+	}
+	go p.animate()
+	return p
+}
+
+func (p *progressBar) animate() {
+	defer close(p.done)
+	ticker := time.NewTicker(16 * time.Millisecond)
+	defer ticker.Stop()
+
+	displayStarted := 0.0
+	displayCompleted := 0.0
+
+	for {
+		select {
+		case <-p.stop:
+			clearProgress()
+			return
+		case <-ticker.C:
+			targetStarted := float64(p.started.Load())
+			targetCompleted := float64(p.completed.Load())
+
+			displayStarted = lerp(displayStarted, targetStarted)
+			displayCompleted = lerp(displayCompleted, targetCompleted)
+
+			fmt.Fprint(os.Stderr, renderProgressBar(displayStarted, displayCompleted, p.total))
+		}
+	}
+}
+
+func (p *progressBar) finish() {
+	close(p.stop)
+	<-p.done
 }
 
 func runCommand(subcommand string, extraArgs []string) error {
@@ -80,11 +136,11 @@ func runCommand(subcommand string, extraArgs []string) error {
 	}
 
 	showStatus := stderrIsTerminal()
-	var started, completed atomic.Int32
 	total := len(contexts)
 
+	var progress *progressBar
 	if showStatus {
-		showProgress(&started, &completed, total)
+		progress = newProgressBar(total)
 	}
 
 	results := make([]contextResult, len(contexts))
@@ -98,9 +154,8 @@ func runCommand(subcommand string, extraArgs []string) error {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			started.Add(1)
-			if showStatus {
-				showProgress(&started, &completed, total)
+			if progress != nil {
+				progress.started.Add(1)
 			}
 
 			output, err := runKubectlCommand(context, subcommand, extraArgs)
@@ -109,17 +164,17 @@ func runCommand(subcommand string, extraArgs []string) error {
 				output:  output,
 				err:     err,
 			}
-			completed.Add(1)
-			if showStatus {
-				showProgress(&started, &completed, total)
+
+			if progress != nil {
+				progress.completed.Add(1)
 			}
 		}(i, ctx)
 	}
 
 	wg.Wait()
 
-	if showStatus {
-		clearProgress()
+	if progress != nil {
+		progress.finish()
 	}
 
 	outputFormat := detectOutputFormat(extraArgs)

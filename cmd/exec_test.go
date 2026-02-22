@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -231,8 +230,8 @@ func captureStderr(fn func()) string {
 func TestRenderProgressBar(t *testing.T) {
 	tests := []struct {
 		name      string
-		started   int
-		completed int
+		started   float64
+		completed float64
 		total     int
 		wantText  string
 		wantWhite bool
@@ -278,6 +277,15 @@ func TestRenderProgressBar(t *testing.T) {
 			total:    0,
 			wantText: "",
 		},
+		{
+			name:      "fractional values mid-animation",
+			started:   5.5,
+			completed: 2.7,
+			total:     10,
+			wantText:  "2/10 complete",
+			wantWhite: true,
+			wantGray:  true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -316,17 +324,13 @@ func TestRenderProgressBarPartialBlocks(t *testing.T) {
 	assert.True(t, hasPartial, "small progress should produce a partial block character")
 }
 
-func TestShowProgress(t *testing.T) {
-	var started, completed atomic.Int32
-	started.Store(5)
-	completed.Store(3)
+func TestLerp(t *testing.T) {
+	result := lerp(0.0, 10.0)
+	assert.Greater(t, result, 0.0)
+	assert.Less(t, result, 10.0)
 
-	output := captureStderr(func() {
-		showProgress(&started, &completed, 10)
-	})
-
-	assert.Contains(t, output, "3/10 complete")
-	assert.Contains(t, output, "█")
+	result = lerp(9.96, 10.0)
+	assert.Equal(t, 10.0, result, "should snap to target when close enough")
 }
 
 func TestClearProgress(t *testing.T) {
