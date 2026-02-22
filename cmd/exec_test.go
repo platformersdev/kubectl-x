@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -210,4 +211,59 @@ func TestStreamLinesFilterHeaderDeduplicatesAcrossContexts(t *testing.T) {
 
 	lines := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
 	assert.Len(t, lines, 3, "expected 1 header + 2 data lines")
+}
+
+func captureStderr(fn func()) string {
+	r, w, _ := os.Pipe()
+	oldStderr := os.Stderr
+	os.Stderr = w
+
+	fn()
+
+	w.Close()
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	return buf.String()
+}
+
+func TestShowProgress(t *testing.T) {
+	var completed atomic.Int32
+	completed.Store(3)
+
+	output := captureStderr(func() {
+		showProgress(&completed, 10)
+	})
+
+	assert.Contains(t, output, "3/10 contexts complete")
+}
+
+func TestShowProgressAtZero(t *testing.T) {
+	var completed atomic.Int32
+
+	output := captureStderr(func() {
+		showProgress(&completed, 5)
+	})
+
+	assert.Contains(t, output, "0/5 contexts complete")
+}
+
+func TestShowProgressAtComplete(t *testing.T) {
+	var completed atomic.Int32
+	completed.Store(25)
+
+	output := captureStderr(func() {
+		showProgress(&completed, 25)
+	})
+
+	assert.Contains(t, output, "25/25 contexts complete")
+}
+
+func TestClearProgress(t *testing.T) {
+	output := captureStderr(func() {
+		clearProgress()
+	})
+
+	assert.Contains(t, output, "\r\033[K")
 }

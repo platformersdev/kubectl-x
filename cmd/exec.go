@@ -9,13 +9,29 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
+
+	"golang.org/x/term"
 )
 
 type contextResult struct {
 	context string
 	output  string
 	err     error
+}
+
+func stderrIsTerminal() bool {
+	return term.IsTerminal(int(os.Stderr.Fd()))
+}
+
+func showProgress(completed *atomic.Int32, total int) {
+	n := completed.Load()
+	fmt.Fprintf(os.Stderr, "\r\033[K%s⏳ %d/%d contexts complete%s", colorGray, n, total, colorReset)
+}
+
+func clearProgress() {
+	fmt.Fprintf(os.Stderr, "\r\033[K")
 }
 
 func runCommand(subcommand string, extraArgs []string) error {
@@ -26,6 +42,14 @@ func runCommand(subcommand string, extraArgs []string) error {
 
 	if len(contexts) == 0 {
 		return fmt.Errorf("no contexts found in kubeconfig")
+	}
+
+	showStatus := stderrIsTerminal()
+	var completed atomic.Int32
+	total := len(contexts)
+
+	if showStatus {
+		showProgress(&completed, total)
 	}
 
 	results := make([]contextResult, len(contexts))
@@ -45,10 +69,18 @@ func runCommand(subcommand string, extraArgs []string) error {
 				output:  output,
 				err:     err,
 			}
+			completed.Add(1)
+			if showStatus {
+				showProgress(&completed, total)
+			}
 		}(i, ctx)
 	}
 
 	wg.Wait()
+
+	if showStatus {
+		clearProgress()
+	}
 
 	outputFormat := detectOutputFormat(extraArgs)
 	return formatOutput(results, outputFormat, subcommand)
