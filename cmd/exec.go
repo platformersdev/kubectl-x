@@ -25,9 +25,32 @@ func stderrIsTerminal() bool {
 	return term.IsTerminal(int(os.Stderr.Fd()))
 }
 
-func showProgress(completed *atomic.Int32, total int) {
-	n := completed.Load()
-	fmt.Fprintf(os.Stderr, "\r\033[K%s⏳ %d/%d contexts complete%s", colorGray, n, total, colorReset)
+const progressBarWidth = 30
+
+func renderProgressBar(started, completed, total int) string {
+	if total == 0 {
+		return ""
+	}
+
+	completedWidth := (completed * progressBarWidth) / total
+	startedWidth := (started * progressBarWidth) / total
+	inProgressWidth := startedWidth - completedWidth
+	pendingWidth := progressBarWidth - completedWidth - inProgressWidth
+
+	var bar strings.Builder
+	bar.WriteString(colorGreen)
+	bar.WriteString(strings.Repeat("█", completedWidth))
+	bar.WriteString(colorYellow)
+	bar.WriteString(strings.Repeat("█", inProgressWidth))
+	bar.WriteString(colorGray)
+	bar.WriteString(strings.Repeat("░", pendingWidth))
+	bar.WriteString(colorReset)
+
+	return fmt.Sprintf("\r\033[K %s %d/%d complete", bar.String(), completed, total)
+}
+
+func showProgress(started, completed *atomic.Int32, total int) {
+	fmt.Fprint(os.Stderr, renderProgressBar(int(started.Load()), int(completed.Load()), total))
 }
 
 func clearProgress() {
@@ -45,11 +68,11 @@ func runCommand(subcommand string, extraArgs []string) error {
 	}
 
 	showStatus := stderrIsTerminal()
-	var completed atomic.Int32
+	var started, completed atomic.Int32
 	total := len(contexts)
 
 	if showStatus {
-		showProgress(&completed, total)
+		showProgress(&started, &completed, total)
 	}
 
 	results := make([]contextResult, len(contexts))
@@ -63,6 +86,11 @@ func runCommand(subcommand string, extraArgs []string) error {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
+			started.Add(1)
+			if showStatus {
+				showProgress(&started, &completed, total)
+			}
+
 			output, err := runKubectlCommand(context, subcommand, extraArgs)
 			results[index] = contextResult{
 				context: context,
@@ -71,7 +99,7 @@ func runCommand(subcommand string, extraArgs []string) error {
 			}
 			completed.Add(1)
 			if showStatus {
-				showProgress(&completed, total)
+				showProgress(&started, &completed, total)
 			}
 		}(i, ctx)
 	}

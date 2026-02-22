@@ -228,36 +228,93 @@ func captureStderr(fn func()) string {
 	return buf.String()
 }
 
+func TestRenderProgressBar(t *testing.T) {
+	tests := []struct {
+		name      string
+		started   int
+		completed int
+		total     int
+		wantText  string
+		wantGreen bool
+		wantAmber bool
+		wantGray  bool
+	}{
+		{
+			name:      "all pending",
+			started:   0,
+			completed: 0,
+			total:     10,
+			wantText:  "0/10 complete",
+			wantGray:  true,
+		},
+		{
+			name:      "some started none completed",
+			started:   3,
+			completed: 0,
+			total:     10,
+			wantText:  "0/10 complete",
+			wantAmber: true,
+			wantGray:  true,
+		},
+		{
+			name:      "some completed some in progress",
+			started:   6,
+			completed: 3,
+			total:     10,
+			wantText:  "3/10 complete",
+			wantGreen: true,
+			wantAmber: true,
+			wantGray:  true,
+		},
+		{
+			name:      "all completed",
+			started:   10,
+			completed: 10,
+			total:     10,
+			wantText:  "10/10 complete",
+			wantGreen: true,
+		},
+		{
+			name:     "zero total",
+			started:  0,
+			completed: 0,
+			total:    0,
+			wantText: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := renderProgressBar(tt.started, tt.completed, tt.total)
+			if tt.total == 0 {
+				assert.Empty(t, result)
+				return
+			}
+			assert.Contains(t, result, tt.wantText)
+			if tt.wantGreen {
+				assert.Contains(t, result, colorGreen)
+			}
+			if tt.wantAmber {
+				assert.Contains(t, result, colorYellow)
+			}
+			if tt.wantGray {
+				assert.Contains(t, result, "░")
+			}
+		})
+	}
+}
+
 func TestShowProgress(t *testing.T) {
-	var completed atomic.Int32
+	var started, completed atomic.Int32
+	started.Store(5)
 	completed.Store(3)
 
 	output := captureStderr(func() {
-		showProgress(&completed, 10)
+		showProgress(&started, &completed, 10)
 	})
 
-	assert.Contains(t, output, "3/10 contexts complete")
-}
-
-func TestShowProgressAtZero(t *testing.T) {
-	var completed atomic.Int32
-
-	output := captureStderr(func() {
-		showProgress(&completed, 5)
-	})
-
-	assert.Contains(t, output, "0/5 contexts complete")
-}
-
-func TestShowProgressAtComplete(t *testing.T) {
-	var completed atomic.Int32
-	completed.Store(25)
-
-	output := captureStderr(func() {
-		showProgress(&completed, 25)
-	})
-
-	assert.Contains(t, output, "25/25 contexts complete")
+	assert.Contains(t, output, "3/10 complete")
+	assert.Contains(t, output, "█")
 }
 
 func TestClearProgress(t *testing.T) {
