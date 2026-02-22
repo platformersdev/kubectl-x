@@ -255,27 +255,6 @@ func TestFormatDefaultOutput(t *testing.T) {
 	}
 }
 
-func captureOutputAndStderr(fn func()) (stdout, stderr string) {
-	rOut, wOut, _ := os.Pipe()
-	rErr, wErr, _ := os.Pipe()
-	oldStdout := os.Stdout
-	oldStderr := os.Stderr
-	os.Stdout = wOut
-	os.Stderr = wErr
-
-	fn()
-
-	wOut.Close()
-	wErr.Close()
-	os.Stdout = oldStdout
-	os.Stderr = oldStderr
-
-	var bufOut, bufErr bytes.Buffer
-	io.Copy(&bufOut, rOut)
-	io.Copy(&bufErr, rErr)
-	return bufOut.String(), bufErr.String()
-}
-
 func captureOutputCombined(fn func()) string {
 	r, w, _ := os.Pipe()
 	oldStdout := os.Stdout
@@ -323,6 +302,189 @@ func TestFormatDefaultOutputErrorsBeforeOutput(t *testing.T) {
 	}
 	if errIdx > normalIdx {
 		t.Errorf("error (at index %d) should appear before normal output (at index %d)", errIdx, normalIdx)
+	}
+}
+
+func TestFormatLogsOutput(t *testing.T) {
+	tests := []struct {
+		name     string
+		results  []contextResult
+		expected string
+	}{
+		{
+			name: "single context with log lines",
+			results: []contextResult{
+				{
+					context: "ctx1",
+					output:  "2025-01-01 log line 1\n2025-01-01 log line 2",
+					err:     nil,
+				},
+			},
+			expected: "ctx1  2025-01-01 log line 1\nctx1  2025-01-01 log line 2\n",
+		},
+		{
+			name: "multiple contexts with consistent padding",
+			results: []contextResult{
+				{
+					context: "short",
+					output:  "log line from short",
+					err:     nil,
+				},
+				{
+					context: "very-long-context-name",
+					output:  "log line from long",
+					err:     nil,
+				},
+			},
+			expected: "short                   log line from short\nvery-long-context-name  log line from long\n",
+		},
+		{
+			name: "context with error",
+			results: []contextResult{
+				{
+					context: "ctx1",
+					output:  "log line 1",
+					err:     nil,
+				},
+				{
+					context: "ctx2",
+					output:  "error output",
+					err:     fmt.Errorf("connection failed"),
+				},
+			},
+			expected: "ctx1  log line 1\n",
+		},
+		{
+			name: "context with empty output",
+			results: []contextResult{
+				{
+					context: "ctx1",
+					output:  "log line 1",
+					err:     nil,
+				},
+				{
+					context: "ctx2",
+					output:  "",
+					err:     nil,
+				},
+			},
+			expected: "ctx1  log line 1\n",
+		},
+		{
+			name: "multiple lines from multiple contexts",
+			results: []contextResult{
+				{
+					context: "ctx1",
+					output:  "line1\nline2",
+					err:     nil,
+				},
+				{
+					context: "ctx2",
+					output:  "line3\nline4",
+					err:     nil,
+				},
+			},
+			expected: "ctx1  line1\nctx1  line2\nctx2  line3\nctx2  line4\n",
+		},
+		{
+			name:     "all errors",
+			results:  []contextResult{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+			defer func() {
+				os.Stdout = oldStdout
+				w.Close()
+			}()
+
+			done := make(chan bool)
+			go func() {
+				io.Copy(&stdout, r)
+				done <- true
+			}()
+
+			err := formatLogsOutput(tt.results)
+			w.Close()
+			<-done
+
+			if err != nil {
+				t.Errorf("formatLogsOutput() error = %v, want nil", err)
+			}
+
+			output := stdout.String()
+			if output != tt.expected {
+				t.Errorf("formatLogsOutput() output = %q, want %q", output, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFormatLogsOutputErrorsToStderr(t *testing.T) {
+	oldStderr := os.Stderr
+	stderrR, stderrW, _ := os.Pipe()
+	os.Stderr = stderrW
+
+	oldStdout := os.Stdout
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdout = stdoutW
+
+	defer func() {
+		os.Stderr = oldStderr
+		os.Stdout = oldStdout
+		stderrW.Close()
+		stdoutW.Close()
+	}()
+
+	var stderrBuf, stdoutBuf bytes.Buffer
+	stderrDone := make(chan bool)
+	stdoutDone := make(chan bool)
+	go func() { io.Copy(&stderrBuf, stderrR); stderrDone <- true }()
+	go func() { io.Copy(&stdoutBuf, stdoutR); stdoutDone <- true }()
+
+	results := []contextResult{
+		{
+			context: "good-ctx",
+			output:  "healthy log line",
+			err:     nil,
+		},
+		{
+			context: "bad-ctx",
+			output:  "some error detail",
+			err:     fmt.Errorf("connection refused"),
+		},
+	}
+
+	err := formatLogsOutput(results)
+	stdoutW.Close()
+	stderrW.Close()
+	<-stdoutDone
+	<-stderrDone
+
+	if err != nil {
+		t.Fatalf("formatLogsOutput() returned error: %v", err)
+	}
+
+	stdout := stdoutBuf.String()
+	stderr := stderrBuf.String()
+
+	if !strings.Contains(stdout, "healthy log line") {
+		t.Errorf("stdout should contain successful log output, got %q", stdout)
+	}
+	if strings.Contains(stdout, "bad-ctx") {
+		t.Errorf("stdout should not contain error context output, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "bad-ctx") {
+		t.Errorf("stderr should contain the error context name, got %q", stderr)
+	}
+	if !strings.Contains(stderr, "connection refused") {
+		t.Errorf("stderr should contain the error message, got %q", stderr)
 	}
 }
 
@@ -891,6 +1053,89 @@ func TestFormatOutput(t *testing.T) {
 					if !strings.HasPrefix(line, "ctx1") && !strings.HasPrefix(line, "ctx2") {
 						t.Errorf("each line should be prefixed with a context name, got %q", line)
 					}
+				}
+			},
+		},
+		{
+			name:       "default format with api-versions subcommand",
+			format:     formatDefault,
+			subcommand: "api-versions",
+			results: []contextResult{
+				{
+					context: "ctx1",
+					output:  "apps/v1\nv1",
+					err:     nil,
+				},
+				{
+					context: "ctx2",
+					output:  "apps/v1\nv1",
+					err:     nil,
+				},
+			},
+			checkFn: func(t *testing.T, output string) {
+				expected := "ctx1  apps/v1\nctx1  v1\nctx2  apps/v1\nctx2  v1\n"
+				if output != expected {
+					t.Errorf("formatOutput() output = %q, want %q", output, expected)
+				}
+			},
+		},
+		{
+			name:       "api-versions with error context skipped",
+			format:     formatDefault,
+			subcommand: "api-versions",
+			results: []contextResult{
+				{
+					context: "ctx1",
+					output:  "apps/v1\nv1",
+					err:     nil,
+				},
+				{
+					context: "ctx2",
+					output:  "error: connection refused",
+					err:     fmt.Errorf("connection refused"),
+				},
+			},
+			checkFn: func(t *testing.T, output string) {
+				expected := "ctx1  apps/v1\nctx1  v1\n"
+				if output != expected {
+					t.Errorf("formatOutput() output = %q, want %q", output, expected)
+				}
+			},
+		},
+		{
+			name:       "default format with api-resources subcommand",
+			format:     formatDefault,
+			subcommand: "api-resources",
+			results: []contextResult{
+				{
+					context: "ctx1",
+					output:  "NAME          SHORTNAMES   APIVERSION   NAMESPACED   KIND\nbindings                   v1           true         Binding\npods          po           v1           true         Pod",
+					err:     nil,
+				},
+				{
+					context: "ctx2",
+					output:  "NAME          SHORTNAMES   APIVERSION   NAMESPACED   KIND\nbindings                   v1           true         Binding\npods          po           v1           true         Pod",
+					err:     nil,
+				},
+			},
+			checkFn: func(t *testing.T, output string) {
+				if !strings.Contains(output, "CONTEXT") {
+					t.Error("expected CONTEXT column in header")
+				}
+				if !strings.Contains(output, "SHORTNAMES") {
+					t.Error("expected SHORTNAMES column in header")
+				}
+				if strings.Count(output, "SHORTNAMES") != 1 {
+					t.Errorf("expected header to appear exactly once, got %d times", strings.Count(output, "SHORTNAMES"))
+				}
+				if !strings.Contains(output, "ctx1") {
+					t.Error("expected ctx1 in output")
+				}
+				if !strings.Contains(output, "ctx2") {
+					t.Error("expected ctx2 in output")
+				}
+				if !strings.Contains(output, "pods") {
+					t.Error("expected pods in output")
 				}
 			},
 		},
