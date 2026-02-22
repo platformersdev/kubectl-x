@@ -2,16 +2,13 @@ package cmd
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTopCmd(t *testing.T) {
-	if topCmd == nil {
-		t.Fatal("topCmd should not be nil")
-	}
-	if topCmd.Use != "top" {
-		t.Errorf("topCmd.Use = %q, want %q", topCmd.Use, "top")
-	}
-	if !topCmd.DisableFlagParsing {
-		t.Error("topCmd should have DisableFlagParsing enabled")
-	}
+	require.NotNil(t, topCmd)
+	assert.Equal(t, "top", topCmd.Use)
+	assert.True(t, topCmd.DisableFlagParsing)
 }

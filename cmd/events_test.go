@@ -2,16 +2,13 @@ package cmd
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEventsCmd(t *testing.T) {
-	if eventsCmd == nil {
-		t.Fatal("eventsCmd should not be nil")
-	}
-	if eventsCmd.Use != "events" {
-		t.Errorf("eventsCmd.Use = %q, want %q", eventsCmd.Use, "events")
-	}
-	if !eventsCmd.DisableFlagParsing {
-		t.Error("eventsCmd should have DisableFlagParsing enabled")
-	}
+	require.NotNil(t, eventsCmd)
+	assert.Equal(t, "events", eventsCmd.Use)
+	assert.True(t, eventsCmd.DisableFlagParsing)
 }

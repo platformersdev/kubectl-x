@@ -2,16 +2,13 @@ package cmd
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestApiResourcesCmd(t *testing.T) {
-	if apiResourcesCmd == nil {
-		t.Fatal("apiResourcesCmd should not be nil")
-	}
-	if apiResourcesCmd.Use != "api-resources" {
-		t.Errorf("apiResourcesCmd.Use = %q, want %q", apiResourcesCmd.Use, "api-resources")
-	}
-	if !apiResourcesCmd.DisableFlagParsing {
-		t.Error("apiResourcesCmd should have DisableFlagParsing enabled")
-	}
+	require.NotNil(t, apiResourcesCmd)
+	assert.Equal(t, "api-resources", apiResourcesCmd.Use)
+	assert.True(t, apiResourcesCmd.DisableFlagParsing)
 }

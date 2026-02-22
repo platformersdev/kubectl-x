@@ -2,16 +2,13 @@ package cmd
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestApiVersionsCmd(t *testing.T) {
-	if apiVersionsCmd == nil {
-		t.Fatal("apiVersionsCmd should not be nil")
-	}
-	if apiVersionsCmd.Use != "api-versions" {
-		t.Errorf("apiVersionsCmd.Use = %q, want %q", apiVersionsCmd.Use, "api-versions")
-	}
-	if !apiVersionsCmd.DisableFlagParsing {
-		t.Error("apiVersionsCmd should have DisableFlagParsing enabled")
-	}
+	require.NotNil(t, apiVersionsCmd)
+	assert.Equal(t, "api-versions", apiVersionsCmd.Use)
+	assert.True(t, apiVersionsCmd.DisableFlagParsing)
 }

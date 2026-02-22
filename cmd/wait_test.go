@@ -2,16 +2,13 @@ package cmd
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWaitCmd(t *testing.T) {
-	if waitCmd == nil {
-		t.Fatal("waitCmd should not be nil")
-	}
-	if waitCmd.Use != "wait" {
-		t.Errorf("waitCmd.Use = %q, want %q", waitCmd.Use, "wait")
-	}
-	if !waitCmd.DisableFlagParsing {
-		t.Error("waitCmd should have DisableFlagParsing enabled")
-	}
+	require.NotNil(t, waitCmd)
+	assert.Equal(t, "wait", waitCmd.Use)
+	assert.True(t, waitCmd.DisableFlagParsing)
 }
