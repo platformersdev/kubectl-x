@@ -128,3 +128,85 @@ jobs:
         gh release create v0.0.${{ github.run_number }} release/* \
           --title "Release v0.0.${{ github.run_number }}" \
           --generate-notes
+
+  update-homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+    environment: homebrew
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        merge-multiple: false
+
+    - name: Prepare binaries
+      run: |
+        mkdir -p release
+        find artifacts -name "kubectl-x-*" -type f -exec cp {} release/ \;
+
+    - name: Set up deploy key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+    - name: Update Homebrew formula
+      run: |
+        VERSION="0.0.${{ github.run_number }}"
+        SHA_DARWIN_ARM64=$(shasum -a 256 release/kubectl-x-darwin-arm64 | cut -d' ' -f1)
+        SHA_DARWIN_AMD64=$(shasum -a 256 release/kubectl-x-darwin-amd64 | cut -d' ' -f1)
+        SHA_LINUX_AMD64=$(shasum -a 256 release/kubectl-x-linux-amd64 | cut -d' ' -f1)
+
+        git clone git@github.com:platformersdev/homebrew-tap.git /tmp/homebrew-tap
+        cd /tmp/homebrew-tap
+
+        cat > Formula/kubectl-x.rb << FORMULA
+        class KubectlX < Formula
+          desc "kubectl plugin that runs commands against every context in parallel"
+          homepage "https://github.com/platformersdev/kubectl-x"
+          version "${VERSION}"
+          license "MIT"
+
+          on_macos do
+            if Hardware::CPU.arm?
+              url "https://github.com/platformersdev/kubectl-x/releases/download/v${VERSION}/kubectl-x-darwin-arm64"
+              sha256 "${SHA_DARWIN_ARM64}"
+            else
+              url "https://github.com/platformersdev/kubectl-x/releases/download/v${VERSION}/kubectl-x-darwin-amd64"
+              sha256 "${SHA_DARWIN_AMD64}"
+            end
+          end
+
+          on_linux do
+            if Hardware::CPU.arm?
+              odie "kubectl-x is not available for Linux ARM"
+            else
+              url "https://github.com/platformersdev/kubectl-x/releases/download/v${VERSION}/kubectl-x-linux-amd64"
+              sha256 "${SHA_LINUX_AMD64}"
+            end
+          end
+
+          depends_on "kubernetes-cli"
+
+          def install
+            binary = Dir.glob("kubectl-x-*").first || "kubectl-x"
+            bin.install binary => "kubectl-x"
+          end
+
+          test do
+            assert_match "kubectl x", shell_output("#{bin}/kubectl-x --help")
+          end
+        end
+        FORMULA
+
+        sed -i 's/^        //' Formula/kubectl-x.rb
+
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add Formula/kubectl-x.rb
+        git commit -m "Update kubectl-x to v${VERSION}"
+        git push
