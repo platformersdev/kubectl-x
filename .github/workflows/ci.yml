@@ -128,3 +128,71 @@ jobs:
         gh release create v0.0.${{ github.run_number }} release/* \
           --title "Release v0.0.${{ github.run_number }}" \
           --generate-notes
+
+    - name: Update Homebrew tap
+      if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+      env:
+        GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      run: |
+        VERSION="0.0.${{ github.run_number }}"
+        SHA_DARWIN_ARM64=$(shasum -a 256 release/kubectl-x-darwin-arm64 | cut -d' ' -f1)
+        SHA_DARWIN_AMD64=$(shasum -a 256 release/kubectl-x-darwin-amd64 | cut -d' ' -f1)
+        SHA_LINUX_AMD64=$(shasum -a 256 release/kubectl-x-linux-amd64 | cut -d' ' -f1)
+
+        cat > /tmp/kubectl-x.rb << FORMULA
+        class KubectlX < Formula
+          desc "kubectl plugin that runs commands against every context in parallel"
+          homepage "https://github.com/platformersdev/kubectl-x"
+          version "${VERSION}"
+          license "MIT"
+
+          on_macos do
+            if Hardware::CPU.arm?
+              url "https://github.com/platformersdev/kubectl-x/releases/download/v${VERSION}/kubectl-x-darwin-arm64"
+              sha256 "${SHA_DARWIN_ARM64}"
+            else
+              url "https://github.com/platformersdev/kubectl-x/releases/download/v${VERSION}/kubectl-x-darwin-amd64"
+              sha256 "${SHA_DARWIN_AMD64}"
+            end
+          end
+
+          on_linux do
+            if Hardware::CPU.arm?
+              odie "kubectl-x is not available for Linux ARM"
+            else
+              url "https://github.com/platformersdev/kubectl-x/releases/download/v${VERSION}/kubectl-x-linux-amd64"
+              sha256 "${SHA_LINUX_AMD64}"
+            end
+          end
+
+          depends_on "kubernetes-cli"
+
+          def install
+            binary = Dir.glob("kubectl-x-*").first || "kubectl-x"
+            bin.install binary => "kubectl-x"
+          end
+
+          test do
+            assert_match "kubectl x", shell_output("#{bin}/kubectl-x --help")
+          end
+        end
+        FORMULA
+
+        # Remove leading whitespace from heredoc
+        sed -i 's/^        //' /tmp/kubectl-x.rb
+
+        CONTENT=$(base64 -w 0 /tmp/kubectl-x.rb)
+        SHA=$(gh api repos/platformersdev/homebrew-tap/contents/Formula/kubectl-x.rb --jq '.sha' 2>/dev/null || echo "")
+
+        if [ -n "$SHA" ]; then
+          gh api repos/platformersdev/homebrew-tap/contents/Formula/kubectl-x.rb \
+            -X PUT \
+            -f message="Update kubectl-x to v${VERSION}" \
+            -f content="$CONTENT" \
+            -f sha="$SHA"
+        else
+          gh api repos/platformersdev/homebrew-tap/contents/Formula/kubectl-x.rb \
+            -X PUT \
+            -f message="Add kubectl-x v${VERSION}" \
+            -f content="$CONTENT"
+        fi

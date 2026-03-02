@@ -34,6 +34,12 @@ The authors of this project do not intend to support write operations (`apply`, 
 
 ## Installation
 
+### Homebrew
+
+```bash
+brew install platformersdev/tap/kubectl-x
+```
+
 ### Download a release
 
 Download the latest binary for your platform from the [releases page](https://github.com/platformersdev/kubectl-x/releases/latest), then place it in your `$PATH`:
