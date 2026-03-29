@@ -125,7 +125,20 @@ func (p *progressBar) finish() {
 	<-p.done
 }
 
+func hasSortBy(args []string) bool {
+	for _, arg := range args {
+		if arg == "--sort-by" || strings.HasPrefix(arg, "--sort-by=") {
+			return true
+		}
+	}
+	return false
+}
+
 func runCommand(subcommand string, extraArgs []string) error {
+	if hasSortBy(extraArgs) {
+		fmt.Fprintf(os.Stderr, "Warning: --sort-by sorts within each context independently and may not produce the expected global ordering. See https://github.com/platformersdev/kubectl-x/issues/29\n")
+	}
+
 	contexts, err := getContexts()
 	if err != nil {
 		return fmt.Errorf("failed to get contexts: %w", err)
