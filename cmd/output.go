@@ -18,6 +18,7 @@ const (
 	formatDefault outputFormat = "default"
 	formatJSON    outputFormat = "json"
 	formatYAML    outputFormat = "yaml"
+	formatRaw     outputFormat = "raw"
 )
 
 const (
@@ -83,6 +84,16 @@ func detectOutputFormat(args []string) outputFormat {
 		if format == "yaml" {
 			return formatYAML
 		}
+		if format == "name" ||
+			strings.HasPrefix(format, "jsonpath=") ||
+			strings.HasPrefix(format, "jsonpath-as-json=") ||
+			strings.HasPrefix(format, "jsonpath-file=") ||
+			strings.HasPrefix(format, "go-template=") ||
+			strings.HasPrefix(format, "go-template-file=") ||
+			strings.HasPrefix(format, "custom-columns=") ||
+			strings.HasPrefix(format, "custom-columns-file=") {
+			return formatRaw
+		}
 		return formatDefault
 	}
 
@@ -119,12 +130,14 @@ func formatOutput(results []contextResult, format outputFormat, subcommand strin
 		return formatJSONOutput(results, subcommand)
 	case formatYAML:
 		return formatYAMLOutput(results, subcommand)
+	case formatRaw:
+		return formatRawOutput(results)
 	default:
 		if subcommand == "version" {
 			return formatVersionOutput(results)
 		}
 		if subcommand == "logs" || subcommand == "api-versions" {
-			return formatLogsOutput(results)
+			return formatRawOutput(results)
 		}
 		return formatDefaultOutput(results)
 	}
@@ -406,7 +419,7 @@ func formatVersionOutput(results []contextResult) error {
 	return nil
 }
 
-func formatLogsOutput(results []contextResult) error {
+func formatRawOutput(results []contextResult) error {
 	maxContextWidth := 0
 	for _, result := range results {
 		if len(result.context) > maxContextWidth {
