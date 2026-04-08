@@ -103,6 +103,51 @@ func TestDetectOutputFormat(t *testing.T) {
 			args:     []string{"pod", "-otable"},
 			expected: formatDefault,
 		},
+		{
+			name:     "name format",
+			args:     []string{"pods", "-o", "name"},
+			expected: formatRaw,
+		},
+		{
+			name:     "jsonpath format",
+			args:     []string{"pods", "-o", "jsonpath={.items[*].metadata.name}"},
+			expected: formatRaw,
+		},
+		{
+			name:     "jsonpath-as-json format",
+			args:     []string{"pods", "-o", "jsonpath-as-json={.items[*]}"},
+			expected: formatRaw,
+		},
+		{
+			name:     "jsonpath-file format",
+			args:     []string{"pods", "-o", "jsonpath-file=tmpl.txt"},
+			expected: formatRaw,
+		},
+		{
+			name:     "go-template format",
+			args:     []string{"pods", "-o", "go-template={{range .items}}{{.metadata.name}}{{end}}"},
+			expected: formatRaw,
+		},
+		{
+			name:     "go-template-file format",
+			args:     []string{"pods", "-o", "go-template-file=tmpl.txt"},
+			expected: formatRaw,
+		},
+		{
+			name:     "custom-columns format",
+			args:     []string{"pods", "-o", "custom-columns=NAME:.metadata.name"},
+			expected: formatRaw,
+		},
+		{
+			name:     "custom-columns-file format",
+			args:     []string{"pods", "-o", "custom-columns-file=cols.txt"},
+			expected: formatRaw,
+		},
+		{
+			name:     "jsonpath via equals flag",
+			args:     []string{"pods", "--output=jsonpath={.items[*].metadata.name}"},
+			expected: formatRaw,
+		},
 	}
 
 	for _, tt := range tests {
@@ -236,7 +281,7 @@ func TestFormatDefaultOutputErrorsBeforeOutput(t *testing.T) {
 	assert.Less(t, errIdx, normalIdx, "error should appear before normal output")
 }
 
-func TestFormatLogsOutput(t *testing.T) {
+func TestFormatRawOutput(t *testing.T) {
 	tests := []struct {
 		name     string
 		results  []contextResult
@@ -291,7 +336,7 @@ func TestFormatLogsOutput(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			output := captureStdout(func() {
-				err := formatLogsOutput(tt.results)
+				err := formatRawOutput(tt.results)
 				require.NoError(t, err)
 			})
 			assert.Equal(t, tt.expected, output)
@@ -299,7 +344,7 @@ func TestFormatLogsOutput(t *testing.T) {
 	}
 }
 
-func TestFormatLogsOutputErrorsToStderr(t *testing.T) {
+func TestFormatRawOutputErrorsToStderr(t *testing.T) {
 	oldStderr := os.Stderr
 	stderrR, stderrW, _ := os.Pipe()
 	os.Stderr = stderrW
@@ -326,7 +371,7 @@ func TestFormatLogsOutputErrorsToStderr(t *testing.T) {
 		{context: "bad-ctx", output: "some error detail", err: fmt.Errorf("connection refused")},
 	}
 
-	err := formatLogsOutput(results)
+	err := formatRawOutput(results)
 	stdoutW.Close()
 	stderrW.Close()
 	<-stdoutDone
@@ -340,14 +385,14 @@ func TestFormatLogsOutputErrorsToStderr(t *testing.T) {
 	assert.Contains(t, stderrBuf.String(), "connection refused")
 }
 
-func TestFormatLogsOutputErrorsBeforeOutput(t *testing.T) {
+func TestFormatRawOutputErrorsBeforeOutput(t *testing.T) {
 	results := []contextResult{
 		{context: "ctx1", output: "log line one\nlog line two"},
 		{context: "ctx2", output: "error message", err: fmt.Errorf("connection failed")},
 	}
 
 	combined := captureOutputCombined(func() {
-		formatLogsOutput(results)
+		formatRawOutput(results)
 	})
 
 	errIdx := strings.Index(combined, "Error:")
