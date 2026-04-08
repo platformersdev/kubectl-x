@@ -14,7 +14,7 @@ func TestRootCmd(t *testing.T) {
 }
 
 func TestRootCmdHasSubcommands(t *testing.T) {
-	expected := []string{"version", "get", "logs", "top", "wait", "events", "api-resources", "api-versions"}
+	expected := []string{"version", "get", "logs", "top", "wait", "events", "api-resources", "api-versions", "auth"}
 	registered := make(map[string]bool)
 	for _, cmd := range rootCmd.Commands() {
 		registered[cmd.Use] = true

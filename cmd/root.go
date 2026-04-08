@@ -33,4 +33,5 @@ func init() {
 	rootCmd.AddCommand(eventsCmd)
 	rootCmd.AddCommand(apiResourcesCmd)
 	rootCmd.AddCommand(apiVersionsCmd)
+	rootCmd.AddCommand(authCmd)
 }
