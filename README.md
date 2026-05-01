@@ -8,7 +8,7 @@ A kubectl plugin that runs commands against every context in your kubeconfig fil
 - Run kubectl commands against all contexts simultaneously
 - Parallel execution with configurable batching (default: 25 contexts at a time)
 - Include/exclude contexts by name pattern
-- Support for `version`, `get`, `logs`, `wait`, `top`, `events`, `api-resources`, `api-versions`, and `auth` subcommands
+- Support for `list`, `version`, `get`, `logs`, `wait`, `top`, `events`, `api-resources`, `api-versions`, and `auth` subcommands
 - Streaming log output with `-f` flag across all contexts
 - Watch mode with `-w`/`--watch` flag on `get` and `events` subcommands
 - Flexible output formatting:
@@ -120,6 +120,21 @@ kubectl x --exclude dev --exclude staging get pods
 
 # Include "prod" contexts but exclude US West
 kubectl x --include prod --exclude "us-west" get pods
+```
+
+### List Command
+
+List all contexts from your kubeconfig, one per line. Respects `--include` and `--exclude` filters, making it useful for previewing which contexts a command will target before running it:
+
+```bash
+# List all contexts
+kubectl x list
+
+# List only prod contexts
+kubectl x list --include prod
+
+# List prod contexts, excluding US West
+kubectl x list --include prod --exclude "us-west"
 ```
 
 ### Version Command

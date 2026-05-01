@@ -25,6 +25,7 @@ func init() {
 	rootCmd.PersistentFlags().StringArrayVar(&filterPatterns, "filter", []string{}, "Alias for --include")
 	rootCmd.PersistentFlags().MarkDeprecated("filter", "use --include instead")
 	rootCmd.PersistentFlags().StringArrayVarP(&excludePatterns, "exclude", "e", []string{}, "Exclude contexts by name using regex pattern (can be specified multiple times for OR logic)")
+	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(getCmd)
 	rootCmd.AddCommand(logsCmd)
