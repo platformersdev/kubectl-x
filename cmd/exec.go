@@ -63,26 +63,45 @@ func renderProgressBar(displayStarted, displayCompleted float64, total int) stri
 	sEighths := int(displayStarted * float64(barWidth) * 8 / float64(total))
 
 	var bar strings.Builder
+	currentColor := ""
+	setColor := func(c string) {
+		if c != currentColor {
+			bar.WriteString(c)
+			currentColor = c
+		}
+	}
+
 	for i := 0; i < barWidth; i++ {
 		left := i * 8
 		right := (i + 1) * 8
 
 		switch {
 		case right <= cEighths:
-			bar.WriteString(colorWhite + "█")
+			setColor(colorWhite)
+			bar.WriteString("█")
 		case left >= sEighths:
-			bar.WriteString(colorGray + "░")
+			setColor(colorGray)
+			bar.WriteString("░")
 		case left >= cEighths && right <= sEighths:
-			bar.WriteString(colorGray + "█")
+			setColor(colorGray)
+			bar.WriteString("█")
 		case left < cEighths:
-			bar.WriteString(colorWhite + partialBlocks[cEighths-left])
+			setColor(colorWhite)
+			bar.WriteString(partialBlocks[cEighths-left])
 		default:
-			bar.WriteString(colorGray + partialBlocks[sEighths-left])
+			setColor(colorGray)
+			bar.WriteString(partialBlocks[sEighths-left])
 		}
 	}
 	bar.WriteString(colorReset)
 
-	return fmt.Sprintf("\r\033[K %s%s", bar.String(), suffix)
+	line := fmt.Sprintf(" %s%s", bar.String(), suffix)
+	// Pad to terminal width so \r overwrites the previous line without an erase sequence.
+	visibleLen := 1 + barWidth + len(suffix)
+	if pad := terminalWidth() - visibleLen; pad > 0 {
+		line += strings.Repeat(" ", pad)
+	}
+	return "\r" + line
 }
 
 func clearProgress() {
