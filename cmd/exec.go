@@ -27,12 +27,18 @@ func stderrIsTerminal() bool {
 	return term.IsTerminal(int(os.Stderr.Fd()))
 }
 
-const progressBarWidth = 30
-
 var partialBlocks = []string{" ", "▏", "▎", "▍", "▌", "▋", "▊", "▉"}
 
 const lerpFactor = 0.15
 const lerpSnap = 0.05
+
+func terminalWidth() int {
+	w, _, err := term.GetSize(int(os.Stderr.Fd()))
+	if err != nil || w <= 0 {
+		return 80
+	}
+	return w
+}
 
 func lerp(display, target float64) float64 {
 	display += (target - display) * lerpFactor
@@ -47,30 +53,55 @@ func renderProgressBar(displayStarted, displayCompleted float64, total int) stri
 		return ""
 	}
 
-	cEighths := int(displayCompleted * float64(progressBarWidth) * 8 / float64(total))
-	sEighths := int(displayStarted * float64(progressBarWidth) * 8 / float64(total))
+	suffix := fmt.Sprintf(" %d/%d complete", int(displayCompleted), total)
+	barWidth := terminalWidth() - 1 - len(suffix)
+	if barWidth < 10 {
+		barWidth = 10
+	}
+
+	cEighths := int(displayCompleted * float64(barWidth) * 8 / float64(total))
+	sEighths := int(displayStarted * float64(barWidth) * 8 / float64(total))
 
 	var bar strings.Builder
-	for i := 0; i < progressBarWidth; i++ {
+	currentColor := ""
+	setColor := func(c string) {
+		if c != currentColor {
+			bar.WriteString(c)
+			currentColor = c
+		}
+	}
+
+	for i := 0; i < barWidth; i++ {
 		left := i * 8
 		right := (i + 1) * 8
 
 		switch {
 		case right <= cEighths:
-			bar.WriteString(colorWhite + "█")
+			setColor(colorWhite)
+			bar.WriteString("█")
 		case left >= sEighths:
-			bar.WriteString(colorGray + "░")
+			setColor(colorGray)
+			bar.WriteString("░")
 		case left >= cEighths && right <= sEighths:
-			bar.WriteString(colorGray + "█")
+			setColor(colorGray)
+			bar.WriteString("█")
 		case left < cEighths:
-			bar.WriteString(colorWhite + partialBlocks[cEighths-left])
+			setColor(colorWhite)
+			bar.WriteString(partialBlocks[cEighths-left])
 		default:
-			bar.WriteString(colorGray + partialBlocks[sEighths-left])
+			setColor(colorGray)
+			bar.WriteString(partialBlocks[sEighths-left])
 		}
 	}
 	bar.WriteString(colorReset)
 
-	return fmt.Sprintf("\r\033[K %s %d/%d complete", bar.String(), int(displayCompleted), total)
+	line := fmt.Sprintf(" %s%s", bar.String(), suffix)
+	// Pad to terminal width so \r overwrites the previous line without an erase sequence.
+	visibleLen := 1 + barWidth + len(suffix)
+	if pad := terminalWidth() - visibleLen; pad > 0 {
+		line += strings.Repeat(" ", pad)
+	}
+	return "\r" + line
 }
 
 func clearProgress() {

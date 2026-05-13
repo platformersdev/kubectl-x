@@ -308,7 +308,12 @@ func TestRenderProgressBar(t *testing.T) {
 
 func TestRenderProgressBarWidth(t *testing.T) {
 	result := renderProgressBar(30, 30, 30)
-	assert.Equal(t, strings.Count(result, "█"), progressBarWidth, "fully completed bar should have exactly progressBarWidth full blocks")
+	suffix := fmt.Sprintf(" %d/%d complete", 30, 30)
+	expectedBarWidth := terminalWidth() - 1 - len(suffix)
+	if expectedBarWidth < 10 {
+		expectedBarWidth = 10
+	}
+	assert.Equal(t, expectedBarWidth, strings.Count(result, "█"), "fully completed bar should fill the terminal width")
 	assert.NotContains(t, result, "░")
 }
 
