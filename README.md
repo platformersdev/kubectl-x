@@ -2,6 +2,7 @@
 
 A kubectl plugin that runs commands against every context in your kubeconfig file in parallel.
 
+This is a sample change.
 
 ## Features
 
