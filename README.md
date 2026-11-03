@@ -143,6 +143,23 @@ Run `kubectl version` against all contexts:
 
 ```bash
 kubectl x version
+
+# Structured output
+kubectl x version -o json
+kubectl x version -o yaml
+```
+
+With `-o json` or `-o yaml`, the client and Kustomize versions are reported once, followed by each context's server version (or the error if the context could not be reached):
+
+```json
+{
+  "clientVersion": { "gitVersion": "v1.34.3", ... },
+  "kustomizeVersion": "v5.7.1",
+  "serverVersions": [
+    { "context": "ctx1", "serverVersion": { "gitVersion": "v1.34.0", ... } },
+    { "context": "ctx2", "error": "exit status 1" }
+  ]
+}
 ```
 
 ### Get Command

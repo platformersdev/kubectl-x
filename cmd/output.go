@@ -125,6 +125,10 @@ func detectOutputFormat(args []string) outputFormat {
 }
 
 func formatOutput(results []contextResult, format outputFormat, subcommand string) error {
+	if subcommand == "version" && (format == formatJSON || format == formatYAML) {
+		return formatVersionStructuredOutput(results, format)
+	}
+
 	switch format {
 	case formatJSON:
 		return formatJSONOutput(results, subcommand)
@@ -600,5 +604,83 @@ func formatYAMLOutput(results []contextResult, subcommand string) error {
 	}
 
 	fmt.Print(string(yamlData))
+	return nil
+}
+
+type versionContextEntry struct {
+	Context       string      `json:"context" yaml:"context"`
+	ServerVersion interface{} `json:"serverVersion,omitempty" yaml:"serverVersion,omitempty"`
+	Error         string      `json:"error,omitempty" yaml:"error,omitempty"`
+}
+
+type structuredVersionOutput struct {
+	ClientVersion    interface{}           `json:"clientVersion,omitempty" yaml:"clientVersion,omitempty"`
+	KustomizeVersion interface{}           `json:"kustomizeVersion,omitempty" yaml:"kustomizeVersion,omitempty"`
+	ServerVersions   []versionContextEntry `json:"serverVersions" yaml:"serverVersions"`
+}
+
+// parseVersionDocument parses kubectl version JSON or YAML output. Failed
+// contexts may have stderr appended to the document, so trailing lines are
+// dropped until the remainder parses.
+func parseVersionDocument(output string) (map[string]interface{}, bool) {
+	isVersionDocument := func(data map[string]interface{}) bool {
+		_, hasClient := data["clientVersion"]
+		_, hasServer := data["serverVersion"]
+		return hasClient || hasServer
+	}
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	for end := len(lines); end > 0; end-- {
+		var data map[string]interface{}
+		if err := yaml.Unmarshal([]byte(strings.Join(lines[:end], "\n")), &data); err == nil && isVersionDocument(data) {
+			return data, true
+		}
+	}
+	return nil, false
+}
+
+func formatVersionStructuredOutput(results []contextResult, format outputFormat) error {
+	out := structuredVersionOutput{ServerVersions: []versionContextEntry{}}
+
+	for _, result := range results {
+		entry := versionContextEntry{Context: result.context}
+		if result.err != nil {
+			fmt.Fprintf(os.Stderr, "Context %s: Error: %v\n", result.context, result.err)
+			if result.output != "" {
+				fmt.Fprintf(os.Stderr, "Output: %s\n", result.output)
+			}
+			entry.Error = result.err.Error()
+		}
+
+		if data, ok := parseVersionDocument(result.output); ok {
+			if out.ClientVersion == nil {
+				out.ClientVersion = data["clientVersion"]
+			}
+			if out.KustomizeVersion == nil {
+				out.KustomizeVersion = data["kustomizeVersion"]
+			}
+			entry.ServerVersion = data["serverVersion"]
+		} else if result.err == nil {
+			fmt.Fprintf(os.Stderr, "Context %s: Failed to parse output: %s\n", result.context, strings.TrimSpace(result.output))
+			entry.Error = "failed to parse output"
+		}
+
+		out.ServerVersions = append(out.ServerVersions, entry)
+	}
+
+	if format == formatYAML {
+		yamlData, err := yaml.Marshal(out)
+		if err != nil {
+			return fmt.Errorf("failed to marshal YAML: %w", err)
+		}
+		fmt.Print(string(yamlData))
+		return nil
+	}
+
+	jsonData, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+	fmt.Println(string(jsonData))
 	return nil
 }

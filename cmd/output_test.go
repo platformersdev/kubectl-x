@@ -680,6 +680,30 @@ func TestFormatOutput(t *testing.T) {
 			},
 		},
 		{
+			name:       "json format with version subcommand",
+			format:     formatJSON,
+			subcommand: "version",
+			results: []contextResult{
+				{context: "ctx1", output: `{"clientVersion":{"gitVersion":"v1.34.3"},"serverVersion":{"gitVersion":"v1.34.0"}}`},
+			},
+			checkFn: func(t *testing.T, output string) {
+				assert.Contains(t, output, `"serverVersions"`)
+				assert.NotContains(t, output, `"kind": "List"`)
+			},
+		},
+		{
+			name:       "yaml format with version subcommand",
+			format:     formatYAML,
+			subcommand: "version",
+			results: []contextResult{
+				{context: "ctx1", output: "clientVersion:\n  gitVersion: v1.34.3\nserverVersion:\n  gitVersion: v1.34.0\n"},
+			},
+			checkFn: func(t *testing.T, output string) {
+				assert.Contains(t, output, "serverVersions:")
+				assert.NotContains(t, output, "kind: List")
+			},
+		},
+		{
 			name:       "json format",
 			format:     formatJSON,
 			subcommand: "get",
@@ -773,4 +797,96 @@ func TestFormatOutput(t *testing.T) {
 			tt.checkFn(t, output)
 		})
 	}
+}
+
+func TestParseVersionDocument(t *testing.T) {
+	tests := []struct {
+		name     string
+		output   string
+		expected map[string]interface{}
+		ok       bool
+	}{
+		{
+			name:     "json",
+			output:   `{"clientVersion":{"gitVersion":"v1.34.3"}}`,
+			expected: map[string]interface{}{"clientVersion": map[string]interface{}{"gitVersion": "v1.34.3"}},
+			ok:       true,
+		},
+		{
+			name:     "yaml",
+			output:   "clientVersion:\n  gitVersion: v1.34.3\n",
+			expected: map[string]interface{}{"clientVersion": map[string]interface{}{"gitVersion": "v1.34.3"}},
+			ok:       true,
+		},
+		{
+			name:     "json followed by stderr",
+			output:   "{\"clientVersion\":{\"gitVersion\":\"v1.34.3\"}}\nThe connection to the server localhost:6443 was refused",
+			expected: map[string]interface{}{"clientVersion": map[string]interface{}{"gitVersion": "v1.34.3"}},
+			ok:       true,
+		},
+		{
+			name:     "yaml followed by stderr",
+			output:   "clientVersion:\n  gitVersion: v1.34.3\nThe connection to the server localhost:6443 was refused",
+			expected: map[string]interface{}{"clientVersion": map[string]interface{}{"gitVersion": "v1.34.3"}},
+			ok:       true,
+		},
+		{
+			name:   "unparseable",
+			output: "error: something went wrong",
+			ok:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, ok := parseVersionDocument(tt.output)
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.expected, data)
+		})
+	}
+}
+
+func TestFormatVersionStructuredOutput(t *testing.T) {
+	results := []contextResult{
+		{context: "ctx1", output: `{"clientVersion":{"gitVersion":"v1.34.3"},"kustomizeVersion":"v5.7.1","serverVersion":{"gitVersion":"v1.34.0"}}`},
+		{context: "ctx2", output: "{\"clientVersion\":{\"gitVersion\":\"v1.34.3\"}}\nThe connection to the server was refused", err: fmt.Errorf("exit status 1")},
+	}
+
+	t.Run("json", func(t *testing.T) {
+		output := captureStdout(func() {
+			require.NoError(t, formatVersionStructuredOutput(results, formatJSON))
+		})
+		assert.JSONEq(t, `{
+  "clientVersion": {"gitVersion": "v1.34.3"},
+  "kustomizeVersion": "v5.7.1",
+  "serverVersions": [
+    {"context": "ctx1", "serverVersion": {"gitVersion": "v1.34.0"}},
+    {"context": "ctx2", "error": "exit status 1"}
+  ]
+}`, output)
+	})
+
+	t.Run("yaml", func(t *testing.T) {
+		output := captureStdout(func() {
+			require.NoError(t, formatVersionStructuredOutput(results, formatYAML))
+		})
+		assert.YAMLEq(t, `
+clientVersion:
+  gitVersion: v1.34.3
+kustomizeVersion: v5.7.1
+serverVersions:
+  - context: ctx1
+    serverVersion:
+      gitVersion: v1.34.0
+  - context: ctx2
+    error: exit status 1
+`, output)
+	})
+
+	t.Run("unparseable output", func(t *testing.T) {
+		output := captureStdout(func() {
+			require.NoError(t, formatVersionStructuredOutput([]contextResult{{context: "ctx1", output: "garbage"}}, formatJSON))
+		})
+		assert.JSONEq(t, `{"serverVersions":[{"context":"ctx1","error":"failed to parse output"}]}`, output)
+	})
 }
