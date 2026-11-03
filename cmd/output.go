@@ -147,164 +147,170 @@ func formatOutput(results []contextResult, format outputFormat, subcommand strin
 	}
 }
 
-func formatDefaultOutput(results []contextResult) error {
-	// kubectl output uses multiple spaces to separate columns
-	columnSeparator := regexp.MustCompile(`[ \t]{2,}`)
-	parseColumns := func(line string) []string {
-		parts := columnSeparator.Split(line, -1)
-		var columns []string
-		for _, part := range parts {
-			trimmed := strings.TrimSpace(part)
-			if trimmed != "" {
-				columns = append(columns, trimmed)
-			}
-		}
-		return columns
-	}
+// kubectl output uses multiple spaces to separate columns
+var columnSeparator = regexp.MustCompile(`[ \t]{2,}`)
 
-	// First pass: collect all contexts and their outputs
-	type outputData struct {
-		context string
-		lines   []string
-		columns [][]string // Parsed columns for each line
-		err     error
-		errMsg  string
+func parseColumns(line string) []string {
+	var columns []string
+	for _, part := range columnSeparator.Split(strings.TrimSpace(line), -1) {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			columns = append(columns, trimmed)
+		}
 	}
-	var allOutputs []outputData
-	maxContextWidth := len("CONTEXT")
+	return columns
+}
+
+type tableRow struct {
+	context string
+	columns []string
+}
+
+type table struct {
+	header []string
+	rows   []tableRow
+}
+
+// splitSections splits kubectl output into blank-line separated tables, as
+// produced when requesting multiple resource types (e.g. `get no,ns`).
+func splitSections(output string) [][]string {
+	var sections [][]string
+	var current []string
+	for _, line := range strings.Split(output, "\n") {
+		if strings.TrimSpace(line) == "" {
+			if len(current) > 0 {
+				sections = append(sections, current)
+				current = nil
+			}
+			continue
+		}
+		current = append(current, line)
+	}
+	if len(current) > 0 {
+		sections = append(sections, current)
+	}
+	return sections
+}
+
+// tableKey identifies tables that should be merged across contexts. The
+// resource type prefix (e.g. "node" in "node/foo") distinguishes resource
+// types that happen to share the same header.
+func tableKey(header []string, firstRow []string) string {
+	key := strings.Join(header, "\x00")
+	if len(firstRow) > 0 {
+		if idx := strings.Index(firstRow[0], "/"); idx > 0 {
+			key += "\x00" + firstRow[0][:idx]
+		}
+	}
+	return key
+}
+
+// groupTables merges the tables from each context's output so that each
+// distinct table is printed once with a single header.
+func groupTables(results []contextResult) []*table {
+	var tables []*table
+	byKey := make(map[string]*table)
 
 	for _, result := range results {
 		if result.err != nil {
+			continue
+		}
+		for _, section := range splitSections(result.output) {
+			var header []string
+			lines := section
+			if len(section) > 1 {
+				header = parseColumns(section[0])
+				lines = section[1:]
+			}
+
+			var rows []tableRow
+			for _, line := range lines {
+				if columns := parseColumns(line); len(columns) > 0 {
+					rows = append(rows, tableRow{context: result.context, columns: columns})
+				}
+			}
+			if len(rows) == 0 {
+				continue
+			}
+
+			key := tableKey(header, rows[0].columns)
+			t, ok := byKey[key]
+			if !ok {
+				t = &table{header: header}
+				byKey[key] = t
+				tables = append(tables, t)
+			}
+			t.rows = append(t.rows, rows...)
+		}
+	}
+	return tables
+}
+
+func formatColumns(columns []string, widths []int) string {
+	parts := make([]string, len(columns))
+	for i, col := range columns {
+		width := len(col)
+		if i < len(widths) && widths[i] > width {
+			width = widths[i]
+		}
+		parts[i] = col + strings.Repeat(" ", width-len(col))
+	}
+	// Join with 4 spaces (kubectl standard) and trim trailing spaces
+	return strings.TrimRight(strings.Join(parts, "    "), " ")
+}
+
+func columnWidths(t *table) []int {
+	var widths []int
+	update := func(columns []string) {
+		for i, col := range columns {
+			if i >= len(widths) {
+				widths = append(widths, 0)
+			}
+			if len(col) > widths[i] {
+				widths[i] = len(col)
+			}
+		}
+	}
+	update(t.header)
+	for _, row := range t.rows {
+		update(row.columns)
+	}
+	return widths
+}
+
+func formatDefaultOutput(results []contextResult) error {
+	maxContextWidth := len("CONTEXT")
+	for _, result := range results {
+		if result.err != nil || strings.TrimSpace(result.output) != "" {
 			if len(result.context) > maxContextWidth {
 				maxContextWidth = len(result.context)
 			}
-			allOutputs = append(allOutputs, outputData{
-				context: result.context,
-				err:     result.err,
-				errMsg:  result.output,
-			})
-			continue
-		}
-
-		output := strings.TrimSpace(result.output)
-		if output == "" {
-			continue
-		}
-
-		lines := strings.Split(output, "\n")
-		if len(lines) == 0 {
-			continue
-		}
-
-		if len(result.context) > maxContextWidth {
-			maxContextWidth = len(result.context)
-		}
-
-		// Parse columns for each line
-		columns := make([][]string, len(lines))
-		for i, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if trimmed != "" {
-				columns[i] = parseColumns(trimmed)
-			}
-		}
-
-		allOutputs = append(allOutputs, outputData{
-			context: result.context,
-			lines:   lines,
-			columns: columns,
-		})
-	}
-
-	// Find the header from the first valid output
-	var headerColumns []string
-	var headerFound bool
-	for _, data := range allOutputs {
-		if data.err == nil && len(data.columns) > 1 && len(data.columns[0]) > 0 {
-			headerColumns = data.columns[0]
-			headerFound = true
-			break
 		}
 	}
 
-	// Second pass: find max width for each column position across all outputs
-	maxColumnWidths := make(map[int]int)
-	if headerFound {
-		for i, col := range headerColumns {
-			trimmed := strings.TrimSpace(col)
-			if trimmed != "" && len(trimmed) > maxColumnWidths[i] {
-				maxColumnWidths[i] = len(trimmed)
+	for _, result := range results {
+		if result.err != nil {
+			coloredContext := colorizeContext(result.context)
+			fmt.Fprintf(os.Stderr, "Context %s: Error: %v\n", coloredContext, result.err)
+			if result.output != "" {
+				fmt.Fprintf(os.Stderr, "Output: %s\n", result.output)
 			}
 		}
 	}
 
-	for _, data := range allOutputs {
-		if data.err != nil {
-			continue
+	for i, t := range groupTables(results) {
+		if i > 0 {
+			fmt.Println()
 		}
-		startIdx := 0
-		if headerFound && len(data.columns) > 1 {
-			startIdx = 1 // Skip header line
-		}
-		for i := startIdx; i < len(data.columns); i++ {
-			for j, col := range data.columns[i] {
-				trimmed := strings.TrimSpace(col)
-				if trimmed != "" && len(trimmed) > maxColumnWidths[j] {
-					maxColumnWidths[j] = len(trimmed)
-				}
-			}
-		}
-	}
+		widths := columnWidths(t)
 
-	formatColumns := func(columns []string) string {
-		var parts []string
-		for i, col := range columns {
-			width := maxColumnWidths[i]
-			if width == 0 {
-				width = len(col)
-			}
-			padded := col + strings.Repeat(" ", width-len(col))
-			parts = append(parts, padded)
-		}
-		// Join with 4 spaces (kubectl standard) and trim trailing spaces
-		return strings.TrimRight(strings.Join(parts, "    "), " ")
-	}
-
-	for _, data := range allOutputs {
-		if data.err != nil {
-			coloredContext := colorizeContext(data.context)
-			fmt.Fprintf(os.Stderr, "Context %s: Error: %v\n", coloredContext, data.err)
-			if data.errMsg != "" {
-				fmt.Fprintf(os.Stderr, "Output: %s\n", data.errMsg)
-			}
-		}
-	}
-
-	if headerFound {
-		contextPadding := strings.Repeat(" ", maxContextWidth-len("CONTEXT"))
-		formattedHeader := formatColumns(headerColumns)
-		fmt.Printf("%s%s  %s\n", "CONTEXT", contextPadding, formattedHeader)
-	}
-
-	for _, data := range allOutputs {
-		if data.err != nil {
-			continue
+		if len(t.header) > 0 {
+			contextPadding := strings.Repeat(" ", maxContextWidth-len("CONTEXT"))
+			fmt.Printf("%s%s  %s\n", "CONTEXT", contextPadding, formatColumns(t.header, widths))
 		}
 
-		startIdx := 0
-		if headerFound && len(data.columns) > 1 {
-			startIdx = 1 // Skip header line
-		}
-
-		coloredContext := colorizeContext(data.context)
-		contextPadding := strings.Repeat(" ", maxContextWidth-len(data.context))
-
-		for i := startIdx; i < len(data.columns); i++ {
-			if len(data.columns[i]) == 0 {
-				continue
-			}
-			formattedLine := formatColumns(data.columns[i])
-			fmt.Printf("%s%s  %s\n", coloredContext, contextPadding, formattedLine)
+		for _, row := range t.rows {
+			contextPadding := strings.Repeat(" ", maxContextWidth-len(row.context))
+			fmt.Printf("%s%s  %s\n", colorizeContext(row.context), contextPadding, formatColumns(row.columns, widths))
 		}
 	}
 

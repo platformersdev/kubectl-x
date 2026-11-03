@@ -250,6 +250,33 @@ func TestFormatDefaultOutput(t *testing.T) {
 			},
 			expected: "CONTEXT  NAME                  STATUS     AGE\nctx1     pod1                  Running    5m\nctx2     very-long-pod-name    Pending    3m\n",
 		},
+		{
+			name: "multiple resource types are grouped into separate tables",
+			results: []contextResult{
+				{context: "ctx1", output: "NAME          STATUS   ROLES\nnode/n1       Ready    worker\n\nNAME              STATUS   AGE\nnamespace/default   Active   5d"},
+				{context: "ctx2", output: "NAME          STATUS   ROLES\nnode/n2       Ready    control-plane\n\nNAME              STATUS   AGE\nnamespace/kube-system   Active   3d"},
+			},
+			expected: "CONTEXT  NAME       STATUS    ROLES\n" +
+				"ctx1     node/n1    Ready     worker\n" +
+				"ctx2     node/n2    Ready     control-plane\n" +
+				"\n" +
+				"CONTEXT  NAME                     STATUS    AGE\n" +
+				"ctx1     namespace/default        Active    5d\n" +
+				"ctx2     namespace/kube-system    Active    3d\n",
+		},
+		{
+			name: "resource type missing from some contexts",
+			results: []contextResult{
+				{context: "ctx1", output: "NAME    AGE\nconfigmap/a    1d"},
+				{context: "ctx2", output: "NAME    AGE\nsecret/b    2d\n\nNAME    AGE\nconfigmap/c    3d"},
+			},
+			expected: "CONTEXT  NAME           AGE\n" +
+				"ctx1     configmap/a    1d\n" +
+				"ctx2     configmap/c    3d\n" +
+				"\n" +
+				"CONTEXT  NAME        AGE\n" +
+				"ctx2     secret/b    2d\n",
+		},
 	}
 
 	for _, tt := range tests {

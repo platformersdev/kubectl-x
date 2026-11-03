@@ -179,6 +179,9 @@ kubectl x get pods -o json
 # Get pods with YAML output
 kubectl x get pods -o yaml
 
+# Get multiple resource types (each type is printed as its own table)
+kubectl x get nodes,namespaces
+
 # Watch pods across all contexts
 kubectl x get pods -w
 
