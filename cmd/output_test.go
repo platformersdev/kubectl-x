@@ -459,7 +459,7 @@ func TestFormatVersionOutput(t *testing.T) {
 			results: []contextResult{
 				{context: "ctx1", output: "Client Version: v1.34.3\nKustomize Version: v5.7.1\nServer Version: v1.34.0"},
 			},
-			expected: "Client Version: v1.34.3\nKustomize Version: v5.7.1\n\nCONTEXT                         SERVER VERSION\n--------------------------------------------------\nctx1                            v1.34.0\n",
+			expected: "Client Version: v1.34.3\nKustomize Version: v5.7.1\n\nCONTEXT  SERVER VERSION\nctx1     v1.34.0\n",
 		},
 		{
 			name: "multiple contexts",
@@ -467,7 +467,7 @@ func TestFormatVersionOutput(t *testing.T) {
 				{context: "ctx1", output: "Client Version: v1.34.3\nServer Version: v1.34.0"},
 				{context: "ctx2", output: "Client Version: v1.34.3\nServer Version: v1.34.0"},
 			},
-			expected: "Client Version: v1.34.3\n\nCONTEXT                         SERVER VERSION\n--------------------------------------------------\nctx1                            v1.34.0\nctx2                            v1.34.0\n",
+			expected: "Client Version: v1.34.3\n\nCONTEXT  SERVER VERSION\nctx1     v1.34.0\nctx2     v1.34.0\n",
 		},
 		{
 			name: "context with error",
@@ -475,7 +475,7 @@ func TestFormatVersionOutput(t *testing.T) {
 				{context: "ctx1", output: "Client Version: v1.34.3\nServer Version: v1.34.0"},
 				{context: "ctx2", output: "error message", err: fmt.Errorf("connection failed")},
 			},
-			expected: "Client Version: v1.34.3\n\nCONTEXT                         SERVER VERSION\n--------------------------------------------------\nctx1                            v1.34.0\nctx2                            ERROR\n",
+			expected: "Client Version: v1.34.3\n\nCONTEXT  SERVER VERSION\nctx1     v1.34.0\nctx2     ERROR\n",
 		},
 		{
 			name: "context with empty output",
@@ -483,14 +483,25 @@ func TestFormatVersionOutput(t *testing.T) {
 				{context: "ctx1", output: "Client Version: v1.34.3\nServer Version: v1.34.0"},
 				{context: "ctx2", output: ""},
 			},
-			expected: "Client Version: v1.34.3\n\nCONTEXT                         SERVER VERSION\n--------------------------------------------------\nctx1                            v1.34.0\nctx2                            N/A\n",
+			expected: "Client Version: v1.34.3\n\nCONTEXT  SERVER VERSION\nctx1     v1.34.0\nctx2     N/A\n",
+		},
+		{
+			name: "long context name widens context column",
+			results: []contextResult{
+				{context: "kind-cluster10002345679832948320958325", output: "Client Version: v1.36.0\nServer Version: v1.35.0"},
+				{context: "kind-cluster1", output: "Client Version: v1.36.0\nServer Version: v1.35.0"},
+			},
+			expected: "Client Version: v1.36.0\n\n" +
+				"CONTEXT                                 SERVER VERSION\n" +
+				"kind-cluster10002345679832948320958325  v1.35.0\n" +
+				"kind-cluster1                           v1.35.0\n",
 		},
 		{
 			name: "output with empty lines",
 			results: []contextResult{
 				{context: "ctx1", output: "Client Version: v1.34.3\n\nServer Version: v1.34.0"},
 			},
-			expected: "Client Version: v1.34.3\n\nCONTEXT                         SERVER VERSION\n--------------------------------------------------\nctx1                            v1.34.0\n",
+			expected: "Client Version: v1.34.3\n\nCONTEXT  SERVER VERSION\nctx1     v1.34.0\n",
 		},
 	}
 

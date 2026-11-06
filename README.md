@@ -149,6 +149,17 @@ kubectl x version -o json
 kubectl x version -o yaml
 ```
 
+By default, the client and Kustomize versions are printed once, followed by a table of server versions with the context column sized to the longest context name:
+
+```
+Client Version: v1.36.0
+Kustomize Version: v5.8.1
+
+CONTEXT                                 SERVER VERSION
+kind-cluster10002345679832948320958325  v1.35.0
+kind-cluster1                           v1.35.0
+```
+
 With `-o json` or `-o yaml`, the client and Kustomize versions are reported once, followed by each context's server version (or the error if the context could not be reached):
 
 ```json
