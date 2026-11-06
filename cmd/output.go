@@ -301,20 +301,25 @@ func formatDefaultOutput(results []contextResult) error {
 		if i > 0 {
 			fmt.Println()
 		}
-		widths := columnWidths(t)
-
-		if len(t.header) > 0 {
-			contextPadding := strings.Repeat(" ", maxContextWidth-len("CONTEXT"))
-			fmt.Printf("%s%s  %s\n", "CONTEXT", contextPadding, formatColumns(t.header, widths))
-		}
-
-		for _, row := range t.rows {
-			contextPadding := strings.Repeat(" ", maxContextWidth-len(row.context))
-			fmt.Printf("%s%s  %s\n", colorizeContext(row.context), contextPadding, formatColumns(row.columns, widths))
-		}
+		printTable(t, maxContextWidth)
 	}
 
 	return nil
+}
+
+// printTable prints a table prefixed with a CONTEXT column of the given width.
+func printTable(t *table, contextWidth int) {
+	widths := columnWidths(t)
+
+	if len(t.header) > 0 {
+		contextPadding := strings.Repeat(" ", contextWidth-len("CONTEXT"))
+		fmt.Printf("%s%s  %s\n", "CONTEXT", contextPadding, formatColumns(t.header, widths))
+	}
+
+	for _, row := range t.rows {
+		contextPadding := strings.Repeat(" ", contextWidth-len(row.context))
+		fmt.Printf("%s%s  %s\n", colorizeContext(row.context), contextPadding, formatColumns(row.columns, widths))
+	}
 }
 
 func formatVersionOutput(results []contextResult) error {
@@ -411,20 +416,18 @@ func formatVersionOutput(results []contextResult) error {
 		fmt.Println()
 	}
 
-	fmt.Printf("%-30s  %s\n", "CONTEXT", "SERVER VERSION")
-	fmt.Println(strings.Repeat("-", 50))
-
+	versionTable := &table{header: []string{"SERVER VERSION"}}
+	contextWidth := len("CONTEXT")
 	for _, result := range results {
-		info := versionData[result.context]
-		coloredContext := colorizeContext(result.context)
-		// Calculate padding based on actual context length (without ANSI codes)
-		contextLen := len(result.context)
-		padding := ""
-		if contextLen < 30 {
-			padding = strings.Repeat(" ", 30-contextLen)
+		if len(result.context) > contextWidth {
+			contextWidth = len(result.context)
 		}
-		fmt.Printf("%s%s  %s\n", coloredContext, padding, info.serverVersion)
+		versionTable.rows = append(versionTable.rows, tableRow{
+			context: result.context,
+			columns: []string{versionData[result.context].serverVersion},
+		})
 	}
+	printTable(versionTable, contextWidth)
 
 	return nil
 }
